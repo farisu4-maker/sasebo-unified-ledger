@@ -12,7 +12,7 @@ interface PaymentFormProps {
 
 export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, onClose, onSubmit }) => {
   const [selectedItem, setSelectedItem] = useState<string>('');
-  const [selectedOrg, setSelectedOrg] = useState<string>(
+  const [selectedOrg] = useState<string>(
     member.organization === '両方' ? '道院' : member.organization
   );
   const [amount, setAmount] = useState<number>(0);

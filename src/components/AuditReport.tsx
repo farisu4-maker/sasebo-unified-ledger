@@ -32,38 +32,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     return items.filter(item => item.date >= fyStart && item.date <= fyEnd && !item.isCancelled);
   };
 
-  // 各月の収入まとめ
-  const monthlyIncomes = months.map(m => {
-    const monthStr = m.toString().padStart(2, '0');
-    // その月に該当するトランザクション
-    const monthTransactions = filterByFy(transactions || []).filter(t => {
-      const dateStr = t.date;
-      // Assuming date format is YYYY-MM-DD
-      const transactionMonth = new Date(dateStr).getMonth() + 1; // getMonth() is 0-indexed
-      return transactionMonth === m;
-    });
 
-    const dIn = monthTransactions.filter(t => t.organization === '道院').reduce((sum, t) => sum + t.amount, 0);
-    const sIn = monthTransactions.filter(t => t.organization === 'スポ少').reduce((sum, t) => sum + t.amount, 0);
-
-    return { month: m, doin: dIn, sposhaw: sIn, total: dIn + sIn };
-  });
-
-  // 各月の支出まとめ
-  const monthlyExpenses = months.map(m => {
-    const monthStr = m.toString().padStart(2, '0');
-    const monthExps = filterByFy(expenses || []).filter(e => {
-      const dateStr = e.date;
-      // Assuming date format is YYYY-MM-DD
-      const expenseMonth = new Date(dateStr).getMonth() + 1; // getMonth() is 0-indexed
-      return expenseMonth === m;
-    });
-
-    const dOut = monthExps.filter(e => e.organization === '道院' || e.organization === '両方').reduce((sum, e) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
-    const sOut = monthExps.filter(e => e.organization === 'スポ少' || e.organization === '両方').reduce((sum, e) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
-
-    return { month: m, doin: dOut, sposhaw: sOut, total: dOut + sOut };
-  });
   
   const currentTransactions = filterByFy(transactions);
   const currentExpenses = filterByFy(expenses);
@@ -99,14 +68,8 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     discrepancyAlert = discrepancyAlert ? `${discrepancyAlert} / ${spoMsg}` : spoMsg;
   }
 
-  // （監査用ダミー集計エリア用データ等）
-  // 費目別の集計（ダミーの例）
-  const doinCount = members.filter((m: Member) => m.organization === '道院' || m.organization === '両方').length;
-  const doinFeeTotal = incomeDoin;
+  // （監査用集計エリア用データ等）
 
-  const sposhawCount = members.filter((m: Member) => m.organization === 'スポ少' || m.organization === '両方').length;
-  // 香資（スポ少）の収入
-  const sposhawFeeTotal = incomeSpo;
 
   // 人数サマリーの計算（年度）
   const calculateHeadcount = (org: '道院' | 'スポ少') => {
