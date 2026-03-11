@@ -1,6 +1,6 @@
 import React from 'react';
 import { Organization } from '../types';
-import { LayoutDashboard, Users, ReceiptBanner as Receipt, FileText, Settings, Menu, X } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
+import { LayoutDashboard, Users, ReceiptText as Receipt, FileText, Menu, X } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
 
 interface LayoutProps {
   children: React.ReactNode;
