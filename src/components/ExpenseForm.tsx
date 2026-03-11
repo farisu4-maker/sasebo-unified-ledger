@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Organization } from '../types';
+import { Organization, Expense } from '../types';
 
 interface ExpenseFormProps {
-  onSave: (expense: any) => void;
+  onSubmit: (expense: any) => void;
+  memberships?: any;
+  expenses?: Expense[];
 }
 
 const PRESET_CATEGORIES = ['保険料', '交際費', '会場費', '備品代', '消耗品費', '通信費', '水道光熱費', 'その他'];
 
-export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave }) => {
+export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [] }) => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [organization, setOrganization] = useState<Organization | '両方'>('道院');
   const [category, setCategory] = useState<string>('備品代');
@@ -29,7 +31,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave }) => {
     e.preventDefault();
     if (!amount) return;
     
-    onSave({
+    onSubmit({
       date,
       organization,
       category,
@@ -170,6 +172,25 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave }) => {
           </button>
         </div>
       </form>
+
+      {expenses.length > 0 && (
+        <div className="mt-8 border-t border-gray-100 pt-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">直近の支出履歴</h3>
+          <div className="space-y-3">
+            {expenses.slice(0, 3).map((e: Expense) => (
+              <div key={e.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md border border-gray-200">
+                <div>
+                  <div className="text-sm font-bold text-gray-700">{e.date} / {e.organization} / {e.category}</div>
+                  <div className="text-xs text-gray-500">{e.description}</div>
+                </div>
+                <div className="font-bold text-rose-600">
+                  {e.amount.toLocaleString()} 円
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,18 +2,18 @@ import { Member, FeeItem, Transaction, Expense, Budget, OpeningBalance } from '.
 
 export const sampleMembers: Member[] = [
   // M001世帯 (3名: 山田太郎, 山田花子, 山田次郎) - 全員現役で割引対象
-  { id: 'M001', name: '山田 太郎', kana: 'ヤマダ タロウ', birthDate: '1980-05-15', joinDate: '2020-04-01', organization: '道院', representativeId: 'M001', status: '現役', exemptionFlag: false },
-  { id: 'M002', name: '山田 花子', kana: 'ヤマダ ハナコ', birthDate: '1982-08-20', joinDate: '2020-04-01', organization: '道院', representativeId: 'M001', status: '現役', exemptionFlag: false },
-  { id: 'M003', name: '山田 次郎', kana: 'ヤマダ ジロウ', birthDate: '2010-12-05', joinDate: '2021-04-01', organization: '両方', representativeId: 'M001', status: '現役', exemptionFlag: false },
+  { id: 'M001', name: '山田 太郎', kana: 'ヤマダ タロウ', birthDate: '1980-05-15', joinDate: '2020-04-01', organization: '道院', representativeId: 'M001', status: '現役', exemptionFlag: false, notes: '世帯主' },
+  { id: 'M002', name: '山田 花子', kana: 'ヤマダ ハナコ', birthDate: '1982-08-20', joinDate: '2020-04-01', organization: '道院', representativeId: 'M001', status: '現役', exemptionFlag: false, notes: '' },
+  { id: 'M003', name: '山田 次郎', kana: 'ヤマダ ジロウ', birthDate: '2010-12-05', joinDate: '2021-04-01', organization: '両方', representativeId: 'M001', status: '現役', exemptionFlag: false, notes: '' },
   
   // M004世帯 (3名だが1名休眠/脱会扱い -> 現役2名で割引対象外へ変動するテスト用)
-  { id: 'M004', name: '佐藤 健一', kana: 'サトウ ケンイチ', birthDate: '1975-02-10', joinDate: '2019-05-01', organization: '道院', representativeId: 'M004', status: '現役', exemptionFlag: false },
-  { id: 'M005', name: '佐藤 美咲', kana: 'サトウ ミサキ', birthDate: '2008-07-22', joinDate: '2020-04-01', leaveDate: '2025-10-01', organization: 'スポ少', representativeId: 'M004', status: '退会', exemptionFlag: false },
-  { id: 'M006', name: '佐藤 浩二', kana: 'サトウ コウジ', birthDate: '2012-03-15', joinDate: '2023-04-01', organization: '両方', representativeId: 'M004', status: '現役', exemptionFlag: false },
+  { id: 'M004', name: '佐藤 健一', kana: 'サトウ ケンイチ', birthDate: '1975-02-10', joinDate: '2019-05-01', organization: '道院', representativeId: 'M004', status: '現役', exemptionFlag: false, notes: '' },
+  { id: 'M005', name: '佐藤 美咲', kana: 'サトウ ミサキ', birthDate: '2008-07-22', joinDate: '2020-04-01', leaveDate: '2025-10-01', organization: 'スポ少', representativeId: 'M004', status: '退会', exemptionFlag: false, notes: '引越のため退会' },
+  { id: 'M006', name: '佐藤 浩二', kana: 'サトウ コウジ', birthDate: '2012-03-15', joinDate: '2023-04-01', organization: '両方', representativeId: 'M004', status: '現役', exemptionFlag: false, notes: '' },
 
   // 単独
-  { id: 'M007', name: '鈴木 一郎', kana: 'スズキ イチロウ', birthDate: '1995-11-30', joinDate: '2024-02-01', organization: '道院', status: '現役', exemptionFlag: false },
-  { id: 'M008', name: '高橋 涼子', kana: 'タカハシ リョウコ', birthDate: '2015-09-18', joinDate: '2025-04-01', organization: 'スポ少', status: '現役', exemptionFlag: false },
+  { id: 'M007', name: '鈴木 一郎', kana: 'スズキ イチロウ', birthDate: '1995-11-30', joinDate: '2024-02-01', organization: '道院', status: '現役', exemptionFlag: false, notes: '' },
+  { id: 'M008', name: '高橋 涼子', kana: 'タカハシ リョウコ', birthDate: '2015-09-18', joinDate: '2025-04-01', organization: 'スポ少', status: '現役', exemptionFlag: false, notes: '' },
 ];
 
 export const sampleFeeItems: FeeItem[] = [

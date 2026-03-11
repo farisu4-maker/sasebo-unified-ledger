@@ -11,6 +11,7 @@ export interface Member {
   representativeId?: string; // 世帯代表者のMember_ID
   status: '現役' | '休眠' | '退会';
   exemptionFlag: boolean;
+  notes?: string; // 備考
 }
 
 export interface FeeCondition {
@@ -36,6 +37,8 @@ export interface Transaction {
   paymentMethod: string;
   enteredById: string;
   timestamp: string;
+  isCancelled?: boolean; // 新規追加: 取消フラグ
+  fiscalYear?: number;
 }
 
 export interface Expense {
@@ -49,6 +52,8 @@ export interface Expense {
   receiptUrl?: string; // ブラウザ版では一旦Base64などのURL
   enteredById: string;
   timestamp: string;
+  isCancelled?: boolean; // 新規追加: 取消フラグ
+  fiscalYear?: number;
 }
 
 export interface Budget {
@@ -57,6 +62,9 @@ export interface Budget {
   category: string;
   amount: number;
   year: number;
+  initialBalance?: number;
+  finalBalance?: number;
+  rowNumber?: number;
 }
 
 export interface OpeningBalance {

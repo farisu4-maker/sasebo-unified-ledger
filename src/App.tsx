@@ -297,7 +297,7 @@ function App() {
       )}
 
       {activeTab === 'expenses' && (
-        <ExpenseForm onSubmit={handleExpenseSubmit} memberships={members} />
+        <ExpenseForm onSubmit={handleExpenseSubmit} memberships={members} expenses={expenses} />
       )}
 
       {activeTab === 'reports' && (

@@ -1,13 +1,14 @@
 import React from 'react';
 import { Organization } from '../types';
-import { LayoutDashboard, Users, ReceiptText as Receipt, FileText, Menu, X } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
-
+import { LayoutDashboard, Users, ReceiptText as Receipt, FileText, Menu, X, Settings as SettingsIcon } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
   activeOrgContext: Organization | '統合';
   onOrgContextChange: (org: Organization | '統合') => void;
+  activeFiscalYear: number;
+  onFiscalYearChange: (year: number) => void;
   pendingSyncCount: number;
   isSyncing: boolean;
 }
@@ -18,6 +19,8 @@ export const Layout: React.FC<LayoutProps> = ({
   onTabChange, 
   activeOrgContext,
   onOrgContextChange,
+  activeFiscalYear,
+  onFiscalYearChange,
   pendingSyncCount,
   isSyncing
 }) => {
@@ -53,6 +56,8 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'members', label: '拳士・入金', icon: <Users size={20} /> },
     { id: 'expenses', label: '支出記録', icon: <Receipt size={20} /> },
     { id: 'reports', label: '監査・レポート', icon: <FileText size={20} /> },
+    { id: 'history', label: '履歴一覧・取消', icon: <FileText size={20} /> }, // History added
+    { id: 'settings', label: 'システム設定', icon: <SettingsIcon size={20} /> },
   ];
 
   return (
@@ -115,28 +120,45 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
 
-        {/* 団体切り替えセレクタ */}
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">表示コンテキスト</p>
-          <div className="flex bg-gray-200 rounded-lg p-1">
-            <button 
-              onClick={() => onOrgContextChange('統合')}
-              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === '統合' ? 'bg-white shadow text-indigo-700' : 'text-gray-600'}`}
+        {/* 団体・年度切り替えセレクタ */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">表示コンテキスト</p>
+            <div className="flex bg-gray-200 rounded-lg p-1">
+              <button 
+                onClick={() => onOrgContextChange('統合')}
+                className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === '統合' ? 'bg-white shadow text-indigo-700' : 'text-gray-600'}`}
+              >
+                統合
+              </button>
+              <button 
+                onClick={() => onOrgContextChange('道院')}
+                className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === '道院' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
+              >
+                道院
+              </button>
+              <button 
+                onClick={() => onOrgContextChange('スポ少')}
+                className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === 'スポ少' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}
+              >
+                スポ少
+              </button>
+            </div>
+          </div>
+          
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">年度管理</p>
+            </div>
+            <select
+              value={activeFiscalYear}
+              onChange={(e) => onFiscalYearChange(Number(e.target.value))}
+              className="w-full bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
             >
-              統合
-            </button>
-            <button 
-              onClick={() => onOrgContextChange('道院')}
-              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === '道院' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
-            >
-              道院
-            </button>
-            <button 
-              onClick={() => onOrgContextChange('スポ少')}
-              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors ${activeOrgContext === 'スポ少' ? 'bg-white shadow text-emerald-700' : 'text-gray-600'}`}
-            >
-              スポ少
-            </button>
+              {[activeFiscalYear - 1, activeFiscalYear, activeFiscalYear + 1].map(year => (
+                <option key={year} value={year}>{year}年度</option>
+              ))}
+            </select>
           </div>
         </div>
 

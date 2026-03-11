@@ -1,29 +1,38 @@
 import React from 'react';
-import { Organization, Transaction, Expense, Budget, OpeningBalance } from '../types';
+import { Organization, Transaction, Expense, Budget } from '../types/index';
 
 interface DashboardProps {
   activeOrgContext: Organization | '統合';
   transactions: Transaction[];
   expenses: Expense[];
   budgets: Budget[];
-  openingBalances: OpeningBalance[];
+  fiscalYear: number;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
-  activeOrgContext, transactions, expenses, budgets, openingBalances 
+  activeOrgContext, transactions, expenses, budgets, fiscalYear
 }) => {
-  // 残高計算: (前年度繰越) + トランザクション合計 - 支出合計
-  const initialDoin = openingBalances.find(b => b.organization === '道院')?.amount || 0;
-  const initialSpo = openingBalances.find(b => b.organization === 'スポ少')?.amount || 0;
+  // 指定された年度の開始・終了日付を取得（4月始まり）
+  const startDate = `${fiscalYear}-04-01`;
+  const endDate = `${fiscalYear + 1}-03-31`;
 
-  const incomeDoin = transactions.filter(t => t.organization === '道院').reduce((sum, t) => sum + t.amount, 0);
-  const incomeSpo = transactions.filter(t => t.organization === 'スポ少').reduce((sum, t) => sum + t.amount, 0);
+  // 該当年度のデータに絞り込み、かつ未取消のもの
+  const currentTransactions: Transaction[] = transactions.filter((t: Transaction) => t.date >= startDate && t.date <= endDate && !t.isCancelled);
+  const currentExpenses: Expense[] = expenses.filter((e: Expense) => e.date >= startDate && e.date <= endDate && !e.isCancelled);
+
+  // 残高計算: (前年度繰越) + トランザクション合計 - 支出合計
+  // openingBalancesを使わずに、budgetsのinitialBalanceを使用する
+  const initialDoin = budgets.filter((b: Budget) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0);
+  const initialSpo = budgets.filter((b: Budget) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0);
+
+  const incomeDoin = currentTransactions.filter((t: Transaction) => t.organization === '道院').reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+  const incomeSpo = currentTransactions.filter((t: Transaction) => t.organization === 'スポ少').reduce((sum: number, t: Transaction) => sum + t.amount, 0);
 
   // 両方の組織の支出は半分ずつ按分
-  const expenseDoin = expenses.filter(e => e.organization === '道院' || e.organization === '両方')
-                              .reduce((sum, e) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
-  const expenseSpo = expenses.filter(e => e.organization === 'スポ少' || e.organization === '両方')
-                              .reduce((sum, e) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
+  const expenseDoin = currentExpenses.filter((e: Expense) => e.organization === '道院' || e.organization === '両方')
+                              .reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
+  const expenseSpo = currentExpenses.filter((e: Expense) => e.organization === 'スポ少' || e.organization === '両方')
+                              .reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
 
   const balanceDoin = initialDoin + incomeDoin - expenseDoin;
   const balanceSpo = initialSpo + incomeSpo - expenseSpo;
@@ -33,21 +42,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
                          activeOrgContext === 'スポ少' ? balanceSpo :
                          totalBalanceAll;
 
+  // 乖離チェック
+  const hasFinalBalanceDoin = budgets.some((b: Budget) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear && b.finalBalance !== undefined);
+  const finalDoinFromSheet = budgets.filter((b: Budget) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.finalBalance || 0), 0);
+
+  const hasFinalBalanceSpo = budgets.some((b: Budget) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear && b.finalBalance !== undefined);
+  const finalSpoFromSheet = budgets.filter((b: Budget) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.finalBalance || 0), 0);
+
+  let alertMessage = null;
+  if (activeOrgContext === '道院' || activeOrgContext === '統合') {
+    if (hasFinalBalanceDoin && finalDoinFromSheet !== balanceDoin) {
+      alertMessage = `道院の計算残高（${balanceDoin.toLocaleString()}円）と台帳の確定額（${finalDoinFromSheet.toLocaleString()}円）に乖離があります。`;
+    }
+  }
+  if (activeOrgContext === 'スポ少' || activeOrgContext === '統合') {
+    if (hasFinalBalanceSpo && finalSpoFromSheet !== balanceSpo) {
+      const spoMsg = `スポ少の計算残高（${balanceSpo.toLocaleString()}円）と台帳の確定額（${finalSpoFromSheet.toLocaleString()}円）に乖離があります。`;
+      alertMessage = alertMessage ? `${alertMessage} / ${spoMsg}` : spoMsg;
+    }
+  }
+
   // ダミー回収率
   const collectionRateDoin = 85;
   const collectionRateSpo = 92;
 
   // 表示用トランザクション絞り込み
   const displayTransactions = activeOrgContext === '統合' 
-    ? transactions
-    : transactions.filter(t => t.organization === activeOrgContext);
+    ? currentTransactions
+    : currentTransactions.filter((t: Transaction) => t.organization === activeOrgContext);
 
   const recentTransactions = displayTransactions.slice(0, 5); // 直近5件
 
   // 予算情報の計算
-  const displayBudgets = activeOrgContext === '統合' 
+  const displayBudgets: Budget[] = activeOrgContext === '統合' 
     ? budgets 
-    : budgets.filter(b => b.organization === activeOrgContext || b.organization === '両方');
+    : budgets.filter((b: Budget) => b.organization === activeOrgContext || b.organization === '両方');
 
   return (
     <div className="space-y-6">
@@ -58,11 +87,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {alertMessage && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded shadow-sm flex items-center mb-6">
+          <svg className="h-5 w-5 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-sm font-bold text-red-700">{alertMessage}</p>
+        </div>
+      )}
+
       {/* 残高ハイライト */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 opacity-50 pointer-events-none"></div>
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center">
-          {activeOrgContext === '統合' ? '2団体合算 残高' : `${activeOrgContext} 残高`}
+          {fiscalYear}年度 {activeOrgContext === '統合' ? '2団体合算 残高' : `${activeOrgContext} 残高`}
           <span className="ml-2 text-xs font-normal text-gray-400 normal-case">(繰越金 + 当期入金 - 当期支出)</span>
         </h3>
         <div className="flex items-baseline">
@@ -117,7 +155,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {displayBudgets.map(budget => {
             // 対象となる科目の支出を集計
             // その予算に対する現在の支出額
-            const relevantExpenses = expenses.filter(e => e.category === budget.category && (e.organization === budget.organization || e.organization === '両方'));
+            const relevantExpenses = currentExpenses.filter(e => e.category === budget.category && (e.organization === budget.organization || e.organization === '両方'));
             const actualExpense = relevantExpenses.reduce((sum, e) => sum + (e.organization === '両方' && budget.organization !== '両方' ? e.amount / 2 : e.amount), 0);
             
             const ratio = budget.amount > 0 ? (actualExpense / budget.amount) * 100 : 0;

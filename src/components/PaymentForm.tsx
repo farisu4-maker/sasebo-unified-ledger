@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Member, FeeItem } from '../types';
+import { Member, FeeItem } from '../types/index';
 import { calculateFoundationFeeForMember } from '../utils/feeCalculator';
 
 interface PaymentFormProps {
@@ -7,11 +7,14 @@ interface PaymentFormProps {
   allMembers: Member[];
   feeItems: FeeItem[];
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: { memberId: string; item: string; amount: number; paymentMethod: string; organization?: string }) => void;
 }
 
 export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, onClose, onSubmit }) => {
   const [selectedItem, setSelectedItem] = useState<string>('');
+  const [selectedOrg, setSelectedOrg] = useState<string>(
+    member.organization === '両方' ? '道院' : member.organization
+  );
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>('現金');
   const [suggestedFeeMessage, setSuggestedFeeMessage] = useState<string>('');
@@ -19,7 +22,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
   // 家族割引の動的判定（Representative_ID, 現役, 加入・脱退日）
   const today = new Date().toISOString().split('T')[0];
   const familyMembers = member.representativeId 
-    ? allMembers.filter(m => 
+    ? allMembers.filter((m: Member) => 
         m.representativeId === member.representativeId &&
         m.status === '現役' &&
         m.joinDate <= today &&
@@ -35,27 +38,27 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
       setAmount(calculatedFee);
       setSuggestedFeeMessage(`年度末年齢に基づく自動計算: ${calculatedFee.toLocaleString()}円`);
     } else if (selectedItem === '宗教年費') {
-      const fee = feeItems.find(item => item.name === '宗教年費');
+      const fee = feeItems.find((item: FeeItem) => item.name === '宗教年費');
       if (fee) setAmount(fee.amount);
       setSuggestedFeeMessage('');
     } else if (selectedItem === '信徒香資（月）') {
       // 家族割引の判定
       if (isFamilyDiscountEligible) {
-        const discountItem = feeItems.find(item => item.name === '信徒香資（月・家族割引）');
+        const discountItem = feeItems.find((item: FeeItem) => item.name === '信徒香資（月・家族割引）');
         if (discountItem) {
           setAmount(discountItem.amount);
           setSuggestedFeeMessage(`✨ 世帯内現役3名以上：家族割引適用中 (${discountItem.amount.toLocaleString()}円)`);
         } else {
-          const fee = feeItems.find(item => item.name === '信徒香資（月）');
+          const fee = feeItems.find((item: FeeItem) => item.name === '信徒香資（月）');
           if (fee) setAmount(fee.amount);
         }
       } else {
-        const fee = feeItems.find(item => item.name === '信徒香資（月）');
+        const fee = feeItems.find((item: FeeItem) => item.name === '信徒香資（月）');
         if (fee) setAmount(fee.amount);
         setSuggestedFeeMessage('');
       }
     } else if (selectedItem === 'スポ少会費（月）') {
-      const fee = feeItems.find(item => item.name === selectedItem);
+      const fee = feeItems.find((item: FeeItem) => item.name === selectedItem);
       if (fee) setAmount(fee.amount);
       setSuggestedFeeMessage('');
     } else {
@@ -64,15 +67,22 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
     }
   }, [selectedItem, member, feeItems, isFamilyDiscountEligible]);
 
+  const submitTargetRef = React.useRef<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem || amount <= 0) return;
     
+    const targetOrg = member.organization === '両方' && submitTargetRef.current 
+      ? submitTargetRef.current 
+      : member.organization === '両方' ? selectedOrg : member.organization;
+
     onSubmit({
       memberId: member.id,
       item: selectedItem,
       amount,
       paymentMethod,
+      organization: targetOrg
     });
   };
 
@@ -129,6 +139,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               </select>
             </div>
 
+            {/* Radio buttons for organization have been replaced by separate submit buttons below */}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">金額 (円)</label>
               <input 
@@ -157,7 +169,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               </div>
             </div>
 
-            <div className="pt-4 flex justify-end gap-3">
+            <div className="pt-4 flex justify-end gap-3 flex-wrap">
               <button 
                 type="button" 
                 onClick={onClose}
@@ -165,12 +177,31 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               >
                 キャンセル
               </button>
-              <button 
-                type="submit"
-                className="bg-indigo-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
-              >
-                登録する
-              </button>
+              {member.organization === '両方' ? (
+                <>
+                  <button 
+                    type="submit"
+                    onClick={() => submitTargetRef.current = '道院'}
+                    className="bg-indigo-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
+                  >
+                    道院分として登録
+                  </button>
+                  <button 
+                    type="submit"
+                    onClick={() => submitTargetRef.current = 'スポ少'}
+                    className="bg-orange-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors shadow-sm"
+                  >
+                    スポ少分として登録
+                  </button>
+                </>
+              ) : (
+                <button 
+                  type="submit"
+                  className="bg-indigo-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
+                >
+                  登録する
+                </button>
+              )}
             </div>
           </form>
         </div>

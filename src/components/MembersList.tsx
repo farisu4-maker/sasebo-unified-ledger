@@ -18,7 +18,9 @@ export const MembersList: React.FC<MembersListProps> = ({ members, onSelectMembe
               <th scope="col" className="px-6 py-3 border-x">ID</th>
               <th scope="col" className="px-6 py-3 border-x">氏名</th>
               <th scope="col" className="px-6 py-3 border-x">所属</th>
-              <th scope="col" className="px-6 py-3 border-x">区分</th>
+              <th scope="col" className="px-6 py-3 border-x">加入/脱退日</th>
+              <th scope="col" className="px-6 py-3 border-x">ステータス</th>
+              <th scope="col" className="px-6 py-3 border-x">備考</th>
               <th scope="col" className="px-6 py-3 border-x">アクション</th>
             </tr>
           </thead>
@@ -47,8 +49,15 @@ export const MembersList: React.FC<MembersListProps> = ({ members, onSelectMembe
                     )}
                   </div>
                 </td>
+                <td className="px-6 py-4 border-x text-sm text-gray-500 whitespace-pre-wrap">
+                  加入: {member.joinDate}<br/>
+                  {member.leaveDate && `脱退: ${member.leaveDate}`}
+                </td>
                 <td className="px-6 py-4 border-x text-gray-600">
                   {member.status} {member.exemptionFlag && <span className="text-red-500 ml-1 text-xs font-bold border border-red-500 rounded px-1">免除</span>}
+                </td>
+                <td className="px-6 py-4 border-x text-sm text-gray-500 max-w-xs truncate" title={member.notes}>
+                  {member.notes}
                 </td>
                 <td className="px-6 py-4 border-x">
                   <div className="flex gap-2">

@@ -1,17 +1,21 @@
-import React from 'react';
-import { Member, Transaction, Expense, Budget, OpeningBalance } from '../types';
+import React, { useState } from 'react';
+import { Member, Transaction, Expense, Budget } from '../types';
+import { GoogleSheetsService } from '../services/GoogleSheetsService';
 
 interface SettingsProps {
   members: Member[];
   transactions: Transaction[];
   expenses: Expense[];
   budgets: Budget[];
-  openingBalances: OpeningBalance[];
+  fiscalYear: number;
+  onCloseFiscalYear: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({ 
-  members, transactions, expenses, budgets, openingBalances 
+  members, transactions, expenses, budgets, fiscalYear, onCloseFiscalYear
 }) => {
+  const [isClosing, setIsClosing] = useState(false);
+  const [closeMessage, setCloseMessage] = useState<string | null>(null);
 
   const handleExport = () => {
     const data = {
@@ -21,7 +25,6 @@ export const Settings: React.FC<SettingsProps> = ({
       transactions,
       expenses,
       budgets,
-      openingBalances
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -38,10 +41,95 @@ export const Settings: React.FC<SettingsProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleYearEndClose = async () => {
+    if (!window.confirm(`${fiscalYear}年度の決算処理（Rollover）を実行しますか？\nこの操作は元に戻せません。`)) {
+      return;
+    }
+
+    setIsClosing(true);
+    setCloseMessage(null);
+
+    try {
+      const startDate = `${fiscalYear}-04-01`;
+      const endDate = `${fiscalYear + 1}-03-31`;
+
+      const currentTransactions = transactions.filter((t: Transaction) => t.date >= startDate && t.date <= endDate && !t.isCancelled);
+      const currentExpenses = expenses.filter((e: Expense) => e.date >= startDate && e.date <= endDate && !e.isCancelled);
+
+      const orgs: ('道院' | 'スポ少')[] = ['道院', 'スポ少'];
+      const finalBalancesUpdates: { rowNumber: number, finalBalance: number }[] = [];
+      const newBudgets: Budget[] = [];
+
+      let hasError = false;
+
+      for (const org of orgs) {
+        // Calculate initial balance
+        const initialBalance = budgets.filter((b: Budget) => (b.organization === org || b.organization === '両方') && b.year === fiscalYear)
+                                      .reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0);
+        
+        // Calculate income & expense
+        const income = currentTransactions.filter((t: Transaction) => t.organization === org).reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+        const expense = currentExpenses.filter((e: Expense) => e.organization === org || e.organization === '両方')
+                                       .reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
+        
+        const computedFinalBalance = initialBalance + income - expense;
+
+        // Find existing budget rows for this org for the current year
+        const currentYearBudgets = budgets.filter((b: Budget) => b.organization === org && b.year === fiscalYear);
+        
+        if (currentYearBudgets.length > 0) {
+          // Update the first budget row with the final balance (or specific representation if multiple rows)
+          // As per requirement, final_balance is added to M_Budgets
+          if (currentYearBudgets[0].rowNumber) {
+            finalBalancesUpdates.push({
+              rowNumber: currentYearBudgets[0].rowNumber,
+              finalBalance: computedFinalBalance
+            });
+          }
+          
+          // Create new record for next fiscal year setting initial_balance
+          newBudgets.push({
+            id: `B_NEW_${Date.now()}_${org}`,
+            organization: org,
+            category: '次年度繰越（システム生成）',
+            amount: 0,
+            initialBalance: computedFinalBalance,
+            year: fiscalYear + 1
+          });
+        }
+      }
+
+      if (!hasError && (finalBalancesUpdates.length > 0 || newBudgets.length > 0)) {
+        const success = await GoogleSheetsService.closeFiscalYear(finalBalancesUpdates, newBudgets);
+        if (success) {
+          setCloseMessage(`${fiscalYear}年度の決算処理が完了しました。${fiscalYear + 1}年度の初期データが作成されました。`);
+          // Callback to refresh data in App.tsx
+          onCloseFiscalYear();
+        } else {
+          setCloseMessage('決算処理の通信中にエラーが発生しました。');
+        }
+      } else {
+        setCloseMessage('更新対象の予算データが見つかりませんでした。');
+      }
+
+    } catch (e) {
+      console.error(e);
+      setCloseMessage('決算処理中に想定外のエラーが発生しました。');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">システム設定</h2>
       
+      {closeMessage && (
+        <div className={`mb-6 p-4 rounded-md ${closeMessage.includes('完了') ? 'bg-green-50 text-green-800 border-l-4 border-green-500' : 'bg-red-50 text-red-800 border-l-4 border-red-500'}`}>
+          {closeMessage}
+        </div>
+      )}
+
       <div className="space-y-8">
         <section>
           <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
@@ -51,7 +139,7 @@ export const Settings: React.FC<SettingsProps> = ({
             データ・バックアップ
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            現在のシステムに登録されているすべてのデータ（拳士情報、入出金履歴、予算設定、繰越金など）をJSONファイルとしてダウンロードします。<br />
+            現在のシステムに登録されているすべてのデータ（拳士情報、入出金履歴、予算設定など）をJSONファイルとしてダウンロードします。<br />
             定期的なバックアップを推奨します。
           </p>
           <button 
@@ -64,26 +152,53 @@ export const Settings: React.FC<SettingsProps> = ({
 
         <section className="pt-6 border-t border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-            <svg className="w-5 h-5 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg className="w-5 h-5 mr-2 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            期首設定（開発中）
+            年度決算処理（Rollover）
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            次期バージョンでは、ここで各団体の前年度繰越金や、勘定科目ごとの予算額を直接編集できるようになります。現在は `sampleData.ts` の内容が適用されています。
+            {fiscalYear}年度の帳簿を締め、計算された「期末残高」を台帳に確定記録し、{fiscalYear + 1}年度の「期首残高」として引き継ぎます。<br/>
+            <strong>※この操作は1年度につき1回のみ実行してください。</strong>実行後、数秒でデータが同期されます。
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-50 pointer-events-none">
-            {/* モックプレビュー */}
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
-              <h4 className="font-bold text-sm mb-2">道院 繰越金設定</h4>
-              <input type="number" defaultValue={openingBalances.find(b => b.organization === '道院')?.amount} className="w-full border p-2 rounded text-sm bg-white" disabled />
-            </div>
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
-              <h4 className="font-bold text-sm mb-2">スポ少 繰越金設定</h4>
-              <input type="number" defaultValue={openingBalances.find(b => b.organization === 'スポ少')?.amount} className="w-full border p-2 rounded text-sm bg-white" disabled />
+          
+          <div className="bg-orange-50 border border-orange-200 rounded-md p-4 mb-4">
+            <h4 className="font-bold text-orange-800 text-sm mb-2">{fiscalYear}年度 決算プレビュー</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-3 rounded border border-orange-100">
+                <div className="text-xs text-gray-500 mb-1">道院 次期繰越予定額</div>
+                <div className="font-mono text-lg font-semibold">
+                  {((budgets.filter((b: Budget) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) + 
+                   (transactions.filter((t: Transaction) => t.organization === '道院' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) - 
+                   (expenses.filter((e: Expense) => (e.organization === '道院' || e.organization === '両方') && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0))
+                  ).toLocaleString()} 円
+                </div>
+              </div>
+              <div className="bg-white p-3 rounded border border-orange-100">
+                <div className="text-xs text-gray-500 mb-1">スポ少 次期繰越予定額</div>
+                <div className="font-mono text-lg font-semibold">
+                  {((budgets.filter((b: Budget) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) + 
+                   (transactions.filter((t: Transaction) => t.organization === 'スポ少' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) - 
+                   (expenses.filter((e: Expense) => (e.organization === 'スポ少' || e.organization === '両方') && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0))
+                  ).toLocaleString()} 円
+                </div>
+              </div>
             </div>
           </div>
+
+          <button 
+            onClick={handleYearEndClose}
+            disabled={isClosing}
+            className={`font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm flex items-center ${isClosing ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'}`}
+          >
+            {isClosing && (
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            決算処理を実行して次年度へ繰越
+          </button>
         </section>
       </div>
     </div>
