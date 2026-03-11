@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { MembersList } from './components/MembersList';
 import { PaymentForm } from './components/PaymentForm';
 import { ExpenseForm } from './components/ExpenseForm';
 import { AuditReport } from './components/AuditReport';
-import { sampleMembers as initialMembers, sampleFeeItems, sampleTransactions, sampleExpenses, sampleBudgets as initialBudgets, sampleOpeningBalances as initialOpeningBalances } from './mocks/sampleData';
-import { Member, Organization, Transaction, Expense, Budget, OpeningBalance } from './types';
+import { HistoryList } from './components/HistoryList';
+import { Settings } from './components/Settings';
+import { sampleMembers as initialMembers, sampleFeeItems, sampleTransactions, sampleExpenses, sampleBudgets as initialBudgets } from './mocks/sampleData';
+import { Member, Organization, Transaction, Expense, Budget } from './types';
 import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 
 function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [activeOrgContext, setActiveOrgContext] = useState<Organization | '統合'>('統合');
+  const [activeFiscalYear, setActiveFiscalYear] = useState<number>(new Date().getMonth() < 3 ? new Date().getFullYear() - 1 : new Date().getFullYear()); // 4月始まり想定
   
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
@@ -20,7 +23,6 @@ function App() {
   // ステート管理
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-  const [openingBalances] = useState<OpeningBalance[]>(initialOpeningBalances);
 
   const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
   const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses);
@@ -30,7 +32,7 @@ function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // 初期化とキュー監視
-  React.useEffect(() => {
+  useEffect(() => {
     // 初回マウント時に未送信件数を取得
     setPendingSyncCount(OfflineQueueManager.getPendingCount());
 
@@ -68,7 +70,7 @@ function App() {
   }, []);
 
   // オフラインデータの同期処理
-  const syncOfflineData = async () => {
+  const syncOfflineData = useCallback(async () => {
     if (!navigator.onLine || isSyncing) return;
     
     const queue = OfflineQueueManager.getQueue();
@@ -100,14 +102,14 @@ function App() {
     if (successCount > 0) {
       showNotification(`${successCount}件のオフラインデータを同期しました。`);
     }
-  };
+  }, [isSyncing]); // isSyncingを依存配列に追加
 
-  const showNotification = (msg: string) => {
+  const showNotification = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
-  const handlePaymentSubmit = (data: any) => {
+  const handlePaymentSubmit = useCallback((data: { memberId: string; item: string; amount: number; paymentMethod: string; }) => {
     const newTx: Transaction = {
       id: `T${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
@@ -127,9 +129,9 @@ function App() {
     
     showNotification(`${members.find((m: Member) => m.id === data.memberId)?.name} の ${data.item}（${data.amount.toLocaleString()}円）を入金登録しました。`);
     setSelectedMember(null);
-  };
+  }, [members, syncOfflineData, showNotification]);
 
-  const handleQuickEntry = (targetMember: Member) => {
+  const handleQuickEntry = useCallback((targetMember: Member) => {
     const today = new Date().toISOString().split('T')[0];
     const itemsToPay: {item: string, amount: number, org: '道院'|'スポ少'}[] = [];
     
@@ -177,9 +179,9 @@ function App() {
 
     const totalAmount = itemsToPay.reduce((sum, i) => sum + i.amount, 0);
     showNotification(`${targetMember.name}の当月分会費 (${totalAmount.toLocaleString()}円) をクイック登録しました ⚡`);
-  };
+  }, [members, syncOfflineData, showNotification]);
 
-  const handleExpenseSubmit = (data: any) => {
+  const handleExpenseSubmit = useCallback((data: { date: string; organization: Organization; category: string; description: string; amount: number; paymentMethod: string; receiptUrl?: string; }) => {
     const newEx: Expense = {
       id: `E${Date.now()}`,
       date: data.date,
@@ -200,12 +202,55 @@ function App() {
 
     showNotification(`${data.category}（${data.amount.toLocaleString()}円）を支出登録しました。`);
     setActiveTab('dashboard'); // 登録後にダッシュボードに戻る
-  };
+  }, [expenses, syncOfflineData, showNotification]);
+
+  const handleCancelTransaction = useCallback(async (id: string) => {
+    if (window.confirm('この入金記録を取り消しますか？\n（物理削除ではなく、取消フラグが立ちます）')) {
+      try {
+        // 1. UIを即時反映（オプティミスティックUI）
+        setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: true } : t));
+        // 2. Google Sheetsを更新
+        const success = await GoogleSheetsService.cancelTransaction(id);
+        if (success) {
+          showNotification(`入金履歴（ID: ${id}）を取消しました。`);
+        } else {
+          // 失敗時はUIを元に戻す
+          setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: false } : t));
+          showNotification(`取消に失敗しました（ID: ${id}）。通信環境等を確認してください。`);
+        }
+      } catch (e) {
+        setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: false } : t));
+        console.error('Failed to cancel transaction:', e);
+        showNotification(`取消中にエラーが発生しました（ID: ${id}）。`);
+      }
+    }
+  }, [showNotification]);
+
+  const handleCancelExpense = useCallback(async (id: string) => {
+    if (window.confirm('この支出記録を取り消しますか？\n（物理削除ではなく、取消フラグが立ちます）')) {
+      try {
+        setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: true } : e));
+        const success = await GoogleSheetsService.cancelExpense(id);
+        if (success) {
+          showNotification(`支出履歴（ID: ${id}）を取消しました。`);
+        } else {
+          setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: false } : e));
+          showNotification(`取消に失敗しました（ID: ${id}）。通信環境等を確認してください。`);
+        }
+      } catch (e) {
+        setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: false } : e));
+        console.error('Failed to cancel expense:', e);
+        showNotification(`取消中にエラーが発生しました（ID: ${id}）。`);
+      }
+    }
+  }, [showNotification]);
 
   // 組織コンテキストでメンバーをフィルタリング
-  const displayMembers = activeOrgContext === '統合' 
-    ? members 
-    : members.filter(m => m.organization === activeOrgContext || m.organization === '両方');
+  const displayMembers = useMemo(() => {
+    return activeOrgContext === '統合' 
+      ? members 
+      : members.filter((m: Member) => m.organization === activeOrgContext || m.organization === '両方');
+  }, [members, activeOrgContext]);
 
   return (
     <Layout 
@@ -213,6 +258,8 @@ function App() {
       onTabChange={setActiveTab}
       activeOrgContext={activeOrgContext}
       onOrgContextChange={setActiveOrgContext}
+      activeFiscalYear={activeFiscalYear}
+      onFiscalYearChange={setActiveFiscalYear}
       pendingSyncCount={pendingSyncCount}
       isSyncing={isSyncing}
     >
@@ -232,7 +279,7 @@ function App() {
           transactions={transactions} 
           expenses={expenses} 
           budgets={budgets}
-          openingBalances={openingBalances}
+          fiscalYear={activeFiscalYear}
         />
       )}
 
@@ -250,7 +297,7 @@ function App() {
       )}
 
       {activeTab === 'expenses' && (
-        <ExpenseForm onSave={handleExpenseSubmit} />
+        <ExpenseForm onSubmit={handleExpenseSubmit} memberships={members} />
       )}
 
       {activeTab === 'reports' && (
@@ -258,21 +305,39 @@ function App() {
           members={members} 
           transactions={transactions} 
           expenses={expenses} 
-          openingBalances={openingBalances} 
+          budgets={budgets}
+          fiscalYear={activeFiscalYear}
+        />
+      )}
+      
+      {activeTab === 'history' && (
+        <HistoryList 
+          transactions={transactions}
+          expenses={expenses}
+          fiscalYear={activeFiscalYear}
+          onCancelTransaction={handleCancelTransaction}
+          onCancelExpense={handleCancelExpense}
         />
       )}
 
-      {/*
       {activeTab === 'settings' && (
-        <Settings 
-          members={members} 
-          transactions={transactions} 
-          expenses={expenses} 
+        <Settings
+          members={members}
+          transactions={transactions}
+          expenses={expenses}
           budgets={budgets}
-          openingBalances={openingBalances}
+          fiscalYear={activeFiscalYear}
+          onCloseFiscalYear={async () => {
+            setIsSyncing(true);
+            try {
+              const fetchedBudgets = await GoogleSheetsService.fetchBudgets();
+              if (fetchedBudgets.length > 0) setBudgets(fetchedBudgets);
+            } finally {
+              setIsSyncing(false);
+            }
+          }}
         />
       )}
-      */}
 
       {/* モーダル */}
       {selectedMember && (
