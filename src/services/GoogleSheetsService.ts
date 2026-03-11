@@ -1,7 +1,7 @@
-import { Member, FeeItem, Transaction, Expense, Budget, Organization } from '../types';
+import { Member, Transaction, Expense, Budget, Organization } from '../types';
 import { getValidToken } from '../utils/googleAuth';
 
-const SPREADSHEET_ID = import.meta.env.VITE_GOOGLE_SPREADSHEET_ID;
+const SPREADSHEET_ID = (import.meta as any).env.VITE_GOOGLE_SPREADSHEET_ID;
 
 export class GoogleSheetsService {
   

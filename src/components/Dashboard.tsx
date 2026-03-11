@@ -116,8 +116,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-5">
           {displayBudgets.map(budget => {
             // 対象となる科目の支出を集計
-            let conditionOrg = [budget.organization];
-            if (activeOrgContext === '統合') conditionOrg = [budget.organization];
             // その予算に対する現在の支出額
             const relevantExpenses = expenses.filter(e => e.category === budget.category && (e.organization === budget.organization || e.organization === '両方'));
             const actualExpense = relevantExpenses.reduce((sum, e) => sum + (e.organization === '両方' && budget.organization !== '両方' ? e.amount / 2 : e.amount), 0);
@@ -158,7 +156,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-bold text-gray-800 mb-6">直近の入金履歴</h3>
         <div className="relative border-l-2 border-gray-100 ml-3 md:ml-4 space-y-6">
-          {recentTransactions.map((tx, index) => (
+          {recentTransactions.map((tx) => (
             <div key={tx.id} className="relative pl-6">
               <div className={`absolute w-4 h-4 rounded-full -left-[9px] top-1 border-2 border-white shadow-sm ${
                 tx.organization === '道院' ? 'bg-blue-500' : 'bg-emerald-500'

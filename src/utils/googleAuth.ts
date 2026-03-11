@@ -94,9 +94,9 @@ export async function getValidToken(): Promise<string> {
     return cachedToken;
   }
   
-  const email = import.meta.env.VITE_GOOGLE_CLIENT_EMAIL;
+  const email = (import.meta as any).env.VITE_GOOGLE_CLIENT_EMAIL;
   // Retrieve private key. Support both literal \n and real newlines
-  const rawKey = import.meta.env.VITE_GOOGLE_PRIVATE_KEY;
+  const rawKey = (import.meta as any).env.VITE_GOOGLE_PRIVATE_KEY;
   
   if (!email || !rawKey) {
     throw new Error("Missing Google Service Account credentials in environment variables (.env.local)");

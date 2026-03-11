@@ -1,5 +1,3 @@
-import { Transaction, Expense } from '../types';
-
 const QUEUE_KEY = 'sasebo_offline_queue';
 
 export type QueueItemType = 'TRANSACTION' | 'EXPENSE';

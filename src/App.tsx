@@ -5,10 +5,9 @@ import { MembersList } from './components/MembersList';
 import { PaymentForm } from './components/PaymentForm';
 import { ExpenseForm } from './components/ExpenseForm';
 import { AuditReport } from './components/AuditReport';
-import { Settings } from './components/Settings';
 import { sampleMembers as initialMembers, sampleFeeItems, sampleTransactions, sampleExpenses, sampleBudgets as initialBudgets, sampleOpeningBalances as initialOpeningBalances } from './mocks/sampleData';
 import { Member, Organization, Transaction, Expense, Budget, OpeningBalance } from './types';
-import { OfflineQueueManager, QueueItem } from './services/OfflineQueueManager';
+import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 
 function App() {
@@ -21,7 +20,7 @@ function App() {
   // ステート管理
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-  const [openingBalances, setOpeningBalances] = useState<OpeningBalance[]>(initialOpeningBalances);
+  const [openingBalances] = useState<OpeningBalance[]>(initialOpeningBalances);
 
   const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
   const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses);
@@ -113,20 +112,20 @@ function App() {
       id: `T${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
       memberId: data.memberId,
-      organization: members.find(m => m.id === data.memberId)?.organization === '道院' ? '道院' : 'スポ少',
+      organization: members.find((m: Member) => m.id === data.memberId)?.organization === '道院' ? '道院' : 'スポ少',
       item: data.item,
       amount: data.amount,
       paymentMethod: data.paymentMethod,
       enteredById: 'U001',
       timestamp: new Date().toISOString()
     };
-    setTransactions([newTx, ...transactions]);
+    setTransactions((prev: Transaction[]) => [newTx, ...prev]);
     
     // オフラインキューに追加（背後で同期処理を呼び出す）
     OfflineQueueManager.enqueue('TRANSACTION', newTx);
     syncOfflineData();
     
-    showNotification(`${members.find(m => m.id === data.memberId)?.name} の ${data.item}（${data.amount.toLocaleString()}円）を入金登録しました。`);
+    showNotification(`${members.find((m: Member) => m.id === data.memberId)?.name} の ${data.item}（${data.amount.toLocaleString()}円）を入金登録しました。`);
     setSelectedMember(null);
   };
 
@@ -136,7 +135,7 @@ function App() {
     
     // 家族割引判定
     const familyMembers = targetMember.representativeId 
-      ? members.filter(m => 
+      ? members.filter((m: Member) => 
           m.representativeId === targetMember.representativeId &&
           m.status === '現役' &&
           m.joinDate <= today &&
@@ -170,7 +169,7 @@ function App() {
       timestamp: new Date().toISOString()
     }));
 
-    setTransactions((prev) => [...newTxs, ...prev]);
+    setTransactions((prev: Transaction[]) => [...newTxs, ...prev]);
     
     // オフラインキューに追加
     newTxs.forEach(tx => OfflineQueueManager.enqueue('TRANSACTION', tx));
@@ -263,6 +262,7 @@ function App() {
         />
       )}
 
+      {/*
       {activeTab === 'settings' && (
         <Settings 
           members={members} 
@@ -272,6 +272,7 @@ function App() {
           openingBalances={openingBalances}
         />
       )}
+      */}
 
       {/* モーダル */}
       {selectedMember && (
