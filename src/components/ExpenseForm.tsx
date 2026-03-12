@@ -10,12 +10,12 @@ interface ExpenseFormProps {
 
 const PRESET_CATEGORIES = ['保険料', '交際費', '会場費', '備品代', '消耗品費', '通信費', '水道光熱費', 'その他'];
 
-type OrgTab = '全て' | '道院' | 'スポ少' | '両方';
+type OrgTab = '全て' | '道院' | 'スポ少';
 
 export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [], fiscalYear }) => {
   // ── 入力フォーム state ──────────────────────────────────
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [organization, setOrganization] = useState<Organization | '両方'>('道院');
+  const [organization, setOrganization] = useState<Organization>('道院');
   const [category, setCategory] = useState<string>('備品代');
   const [description, setDescription] = useState<string>('');
   const [amount, setAmount] = useState<number | ''>('');
@@ -61,7 +61,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
     return 'bg-purple-100 text-purple-800';
   };
 
-  const tabs: OrgTab[] = ['全て', '道院', 'スポ少', '両方'];
+  const tabs: OrgTab[] = ['全て', '道院', 'スポ少'];
 
   return (
     <div className="space-y-8">
@@ -83,11 +83,10 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">対象団体</label>
-              <select value={organization} onChange={e => setOrganization(e.target.value as Organization | '両方')}
+              <select value={organization} onChange={e => setOrganization(e.target.value as Organization)}
                 className="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-rose-500 focus:border-rose-500">
                 <option value="道院">道院</option>
                 <option value="スポ少">スポ少</option>
-                <option value="両方">両方（按分など）</option>
               </select>
             </div>
           </div>

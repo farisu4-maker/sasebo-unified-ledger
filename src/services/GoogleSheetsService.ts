@@ -322,6 +322,53 @@ export class GoogleSheetsService {
     }
   }
 
+  /**
+   * 決算取り消し（Undo Rollover）
+   *  1. 対象年度（fiscalYear）の final_balance 列（E列）を空白にクリア
+   *  2. 次年度（fiscalYear+1）の「次年度繰越（システム生成）」行を空白行で上書き（論理削除）
+   */
+  static async undoFiscalYear(fiscalYear: number): Promise<boolean> {
+    try {
+      const res = await this.fetchApi('M_Budgets!A:F');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      const rows: string[][] = data.values;
+      const clearRanges: { range: string; values: string[][] }[] = [];
+
+      rows.forEach((row, idx) => {
+        const rowNum = idx + 1; // 1-indexed sheet row
+        const rowYear = parseInt(row[5] ?? '', 10);
+        const org     = row[0] ?? '';
+        const cat     = row[1] ?? '';
+
+        // ① 対象年度の final_balance（E列）をクリア
+        if (rowYear === fiscalYear && (org === '道院' || org === 'スポ少') && row[4] !== '') {
+          clearRanges.push({ range: `M_Budgets!E${rowNum}`, values: [['']] });
+        }
+
+        // ② 次年度の「次年度繰越（システム生成）」行を空白で上書き（削除相当）
+        if (rowYear === fiscalYear + 1 && cat === '次年度繰越（システム生成）') {
+          clearRanges.push({
+            range: `M_Budgets!A${rowNum}:F${rowNum}`,
+            values: [['', '', '', '', '', '']]
+          });
+        }
+      });
+
+      if (clearRanges.length === 0) {
+        // 取り消し対象なし（決算未実行）
+        return false;
+      }
+
+      await this.batchUpdateValues(clearRanges);
+      return true;
+    } catch (e) {
+      console.error('Failed to undo fiscal year', e);
+      return false;
+    }
+  }
+
   // ============================================================
   //  共通ユーティリティ
   // ============================================================

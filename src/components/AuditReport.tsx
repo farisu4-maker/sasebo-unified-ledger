@@ -21,7 +21,6 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     window.print();
   };
 
-  // 個人別納入一覧のダミー年データの生成
   const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
   const fyStart = `${fiscalYear}-04-01`;
@@ -32,32 +31,30 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     return items.filter(item => item.date >= fyStart && item.date <= fyEnd && !item.isCancelled);
   };
 
-
-  
   const currentTransactions = filterByFy(transactions);
   const currentExpenses = filterByFy(expenses);
   
-  // 今年度の収入の計算
+  // ── 収入集計（組織別、按分なし） ─────────────────────────
   const incomeDoin = currentTransactions.filter(tx => tx.organization === '道院').reduce((sum, tx) => sum + tx.amount, 0);
   const incomeSpo = currentTransactions.filter(tx => tx.organization === 'スポ少').reduce((sum, tx) => sum + tx.amount, 0);
 
-  // 支出の計算 (両方所属の支出は按分)
-  const expenseDoin = currentExpenses.filter(ex => ex.organization === '道院' || ex.organization === '両方').reduce((sum, ex) => sum + (ex.organization === '両方' ? ex.amount / 2 : ex.amount), 0);
-  const expenseSpo = currentExpenses.filter(ex => ex.organization === 'スポ少' || ex.organization === '両方').reduce((sum, ex) => sum + (ex.organization === '両方' ? ex.amount / 2 : ex.amount), 0);
+  // ── 支出集計（按分なし、道院/スポ少に全額計上） ──────────
+  const expenseDoin = currentExpenses.filter(ex => ex.organization === '道院').reduce((sum, ex) => sum + ex.amount, 0);
+  const expenseSpo = currentExpenses.filter(ex => ex.organization === 'スポ少').reduce((sum, ex) => sum + ex.amount, 0);
 
-  // 前年度繰越（M_Budgetsの当該年度のinitialBalanceから取得）
-  const prevBalanceDoin = budgets.filter((b) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum, b) => sum + (b.initialBalance || 0), 0);
-  const prevBalanceSpo = budgets.filter((b) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum, b) => sum + (b.initialBalance || 0), 0);
+  // ── 前年度繰越（M_Budgetsの当該年度のinitialBalanceから取得） ─
+  const prevBalanceDoin = budgets.filter(b => b.organization === '道院' && b.year === fiscalYear).reduce((sum, b) => sum + (b.initialBalance || 0), 0);
+  const prevBalanceSpo = budgets.filter(b => b.organization === 'スポ少' && b.year === fiscalYear).reduce((sum, b) => sum + (b.initialBalance || 0), 0);
 
-  // 乖離チェック
+  // ── 乖離チェック ──────────────────────────────────────────
   const calcDoinBalance = prevBalanceDoin + incomeDoin - expenseDoin;
   const calcSpoBalance = prevBalanceSpo + incomeSpo - expenseSpo;
 
-  const hasFinalBalanceDoin = budgets.some(b => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear && b.finalBalance !== undefined);
-  const finalDoinFromSheet = budgets.filter(b => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum, b) => sum + (b.finalBalance || 0), 0);
+  const hasFinalBalanceDoin = budgets.some(b => b.organization === '道院' && b.year === fiscalYear && b.finalBalance !== undefined);
+  const finalDoinFromSheet = budgets.filter(b => b.organization === '道院' && b.year === fiscalYear).reduce((sum, b) => sum + (b.finalBalance || 0), 0);
 
-  const hasFinalBalanceSpo = budgets.some(b => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear && b.finalBalance !== undefined);
-  const finalSpoFromSheet = budgets.filter(b => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum, b) => sum + (b.finalBalance || 0), 0);
+  const hasFinalBalanceSpo = budgets.some(b => b.organization === 'スポ少' && b.year === fiscalYear && b.finalBalance !== undefined);
+  const finalSpoFromSheet = budgets.filter(b => b.organization === 'スポ少' && b.year === fiscalYear).reduce((sum, b) => sum + (b.finalBalance || 0), 0);
 
   let discrepancyAlert = null;
   if (hasFinalBalanceDoin && finalDoinFromSheet !== calcDoinBalance) {
@@ -68,22 +65,14 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     discrepancyAlert = discrepancyAlert ? `${discrepancyAlert} / ${spoMsg}` : spoMsg;
   }
 
-  // （監査用集計エリア用データ等）
-
-
-  // 人数サマリーの計算（年度）
+  // ── 人数サマリー（M_Membersの実データを使用） ─────────────
   const calculateHeadcount = (org: '道院' | 'スポ少') => {
+    // 「両方」は道院・スポ少両方にカウント
     const orgMembers = members.filter(m => m.organization === org || m.organization === '両方');
-    
-    // 期首人数：期首より前に加入し、かつ期首時点で脱退していない
     const opening = orgMembers.filter(m => m.joinDate < fyStart && (!m.leaveDate || m.leaveDate >= fyStart)).length;
-    // 加入数：当期中に加入
-    const joined = orgMembers.filter(m => m.joinDate >= fyStart && m.joinDate <= fyEnd).length;
-    // 脱退数：当期中に脱退
-    const left = orgMembers.filter(m => m.leaveDate && m.leaveDate >= fyStart && m.leaveDate <= fyEnd).length;
-    // 期末人数：期末時点で在籍
+    const joined  = orgMembers.filter(m => m.joinDate >= fyStart && m.joinDate <= fyEnd).length;
+    const left    = orgMembers.filter(m => m.leaveDate && m.leaveDate >= fyStart && m.leaveDate <= fyEnd).length;
     const closing = opening + joined - left;
-    
     return { opening, joined, left, closing };
   };
 
@@ -91,6 +80,56 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     doin: calculateHeadcount('道院'),
     spo: calculateHeadcount('スポ少')
   };
+
+  // ── 個人別年間納入明細表（実データ集計） ───────────────────
+  // 「両方」所属の拳士は道院行・スポ少行に分けて表示
+  type MemberRow = { key: string; name: string; org: '道院' | 'スポ少' };
+
+  const memberRows: MemberRow[] = [];
+  // 在籍メンバーのみ（leaveDate なし、または leaveDate が fyEnd より後）
+  const activeMembers = members.filter(m => !m.leaveDate || m.leaveDate > fyStart);
+  
+  activeMembers.forEach(m => {
+    if (m.organization === '両方') {
+      memberRows.push({ key: `${m.id}_道院`, name: `${m.name}（道院）`, org: '道院' });
+      memberRows.push({ key: `${m.id}_スポ少`, name: `${m.name}（スポ少）`, org: 'スポ少' });
+    } else if (m.organization === '道院' || m.organization === 'スポ少') {
+      memberRows.push({ key: m.id, name: m.name, org: m.organization });
+    }
+  });
+
+  // 月番号（年度順）から YYYY-MM 形式を取得
+  const monthToYM = (m: number): string => {
+    const y = m >= 4 ? fiscalYear : fiscalYear + 1;
+    return `${y}-${String(m).padStart(2, '0')}`;
+  };
+
+  // 月別・組織別の支払額を集計（targetMonth か date の月を参照）
+  const getMemberMonthAmount = (memberId: string, org: '道院' | 'スポ少', month: number): number => {
+    const ym = monthToYM(month);
+    return currentTransactions
+      .filter(tx => {
+        const txOrg = tx.organization === org;
+        const txMonth = tx.targetMonth
+          ? tx.targetMonth === ym
+          : tx.date.startsWith(ym);
+        return tx.memberId === memberId && txOrg && txMonth;
+      })
+      .reduce((s, tx) => s + tx.amount, 0);
+  };
+
+  // 各行の月別金額と合計
+  const rowData = memberRows.map(row => {
+    // IDを元のmember.idに戻す
+    const baseMemberId = row.key.replace('_道院', '').replace('_スポ少', '');
+    const monthAmounts = months.map(m => getMemberMonthAmount(baseMemberId, row.org, m));
+    const total = monthAmounts.reduce((s, v) => s + v, 0);
+    return { ...row, monthAmounts, total };
+  });
+
+  // 月別縦計（各月の全メンバー合計）
+  const monthTotals = months.map((_, mi) => rowData.reduce((s, row) => s + row.monthAmounts[mi], 0));
+  const grandTotal = rowData.reduce((s, row) => s + row.total, 0);
 
   return (
     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 printable-area">
@@ -126,7 +165,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
           </div>
         )}
 
-        {/* 人数サマリー */}
+        {/* 人数サマリー（M_Members 実データ） */}
         <section className="bg-gray-50 p-6 rounded-lg border border-gray-200">
           <h3 className="font-bold text-lg mb-4 text-gray-800">令和{(fiscalYear - 2018)}年度 拳士在籍概況</h3>
           <div className="grid grid-cols-2 gap-8">
@@ -196,16 +235,20 @@ export const AuditReport: React.FC<AuditReportProps> = ({
           </div>
         </section>
 
-        {/* 個人別年間納入明細表 */}
+        {/* 個人別年間納入明細表（T_Transactions実データ） */}
         <section className="break-before-page">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">令和{(fiscalYear - 2018)}年度 個人別年間納入明細表</h1>
+            <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
+              令和{(fiscalYear - 2018)}年度 個人別年間納入明細表
+            </h1>
           </div>
+          <p className="text-xs text-gray-500 mb-2">
+            ※「両方」所属の拳士は道院・スポ少の各行に分けて表示。金額はT_Transactionsの実績値。
+          </p>
           <table className="min-w-full text-center text-xs border border-gray-600">
             <thead className="bg-gray-100 border-b border-gray-600 font-bold">
               <tr>
-                <th className="border-r border-gray-600 py-1 px-2 w-32">氏名 / 所属</th>
-                <th className="border-r border-gray-600 py-1 px-1">年費</th>
+                <th className="border-r border-gray-600 py-1 px-2 w-40 text-left">氏名 / 所属</th>
                 {months.map(m => (
                   <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
                 ))}
@@ -213,24 +256,43 @@ export const AuditReport: React.FC<AuditReportProps> = ({
               </tr>
             </thead>
             <tbody>
-              {members.slice(0, 10).map((member, idx) => (
-                <tr key={member.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+              {rowData.map((row, idx) => (
+                <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="border border-gray-600 py-1 px-2 text-left font-medium">
-                    {member.name} <span className="text-[10px] text-gray-500">({member.organization})</span>
+                    <span>{row.name}</span>
+                    <span className={`ml-1 text-[10px] font-normal px-1 rounded ${
+                      row.org === '道院' ? 'text-blue-600' : 'text-emerald-600'
+                    }`}>{row.org}</span>
                   </td>
-                  <td className="border border-gray-600 py-1 px-1 text-gray-700">済</td>
-                  {months.map(m => (
-                    <td key={m} className={`border border-gray-600 py-1 px-1 text-gray-700 ${Math.random() > 0.8 ? 'text-red-500 font-bold' : ''}`}>
-                      {Math.random() > 0.8 ? '未' : '済'}
+                  {row.monthAmounts.map((amt, mi) => (
+                    <td key={mi} className={`border border-gray-600 py-1 px-1 ${
+                      amt > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'
+                    }`}>
+                      {amt > 0 ? `¥${amt.toLocaleString()}` : '―'}
                     </td>
                   ))}
                   <td className="border border-gray-600 py-1 px-2 font-bold">
-                    ¥{(40000 + Math.floor(Math.random() * 10) * 1000).toLocaleString()}
+                    {row.total > 0 ? `¥${row.total.toLocaleString()}` : '―'}
                   </td>
                 </tr>
               ))}
+              {/* 月別縦計行 */}
+              <tr className="bg-gray-200 font-bold border-t-2 border-gray-600">
+                <td className="border border-gray-600 py-1 px-2 text-left">各月 合計</td>
+                {monthTotals.map((total, mi) => (
+                  <td key={mi} className="border border-gray-600 py-1 px-1 text-gray-900">
+                    {total > 0 ? `¥${total.toLocaleString()}` : '―'}
+                  </td>
+                ))}
+                <td className="border border-gray-600 py-1 px-2 text-gray-900">
+                  {grandTotal > 0 ? `¥${grandTotal.toLocaleString()}` : '―'}
+                </td>
+              </tr>
             </tbody>
           </table>
+          {rowData.length === 0 && (
+            <p className="text-sm text-gray-500 mt-4 text-center">対象期間の在籍拳士データがありません。</p>
+          )}
         </section>
 
       </div>

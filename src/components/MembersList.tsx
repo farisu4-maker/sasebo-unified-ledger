@@ -18,17 +18,13 @@ function calcAge(birthDate: string): number {
   return age;
 }
 
-/** joinDate / leaveDate から表示ステータスを動的計算 */
+/**
+ * ステータス判定：leaveDate に日付が入っていれば「退会」、それ以外は「現役」
+ * （「退会予定」「休眠」などの中間ステータスは廃止）
+ */
 function calcStatus(member: Member): { label: string; color: string } {
-  const today = new Date().toISOString().split('T')[0];
-  if (member.leaveDate && member.leaveDate <= today) {
-    return { label: '退会済', color: 'bg-gray-200 text-gray-600' };
-  }
-  if (member.leaveDate && member.leaveDate > today) {
-    return { label: `退会予定 (${member.leaveDate})`, color: 'bg-yellow-100 text-yellow-800' };
-  }
-  if (member.status === '休眠') {
-    return { label: '休眠', color: 'bg-orange-100 text-orange-700' };
+  if (member.leaveDate && member.leaveDate.trim() !== '') {
+    return { label: '退会', color: 'bg-gray-200 text-gray-600' };
   }
   return { label: '現役', color: 'bg-green-100 text-green-800' };
 }
@@ -53,13 +49,9 @@ export const MembersList: React.FC<MembersListProps> = ({
     const updated: Member = {
       ...member,
       joinDate: editJoinDate,
-      leaveDate: editLeaveDate || undefined,
-      // 日付から status を自動補正
-      status: editLeaveDate && editLeaveDate <= new Date().toISOString().split('T')[0]
-        ? '退会'
-        : member.status === '退会'
-          ? '現役'   // leaveDate を消した場合は現役に戻す
-          : member.status
+      leaveDate: editLeaveDate.trim() !== '' ? editLeaveDate : undefined,
+      // leaveDate があれば退회、なければ現役
+      status: editLeaveDate.trim() !== '' ? '退会' : '現役',
     };
     onMemberUpdate(updated);
     setEditingId(null);
@@ -86,7 +78,7 @@ export const MembersList: React.FC<MembersListProps> = ({
               const age = member.birthDate ? calcAge(member.birthDate) : null;
               const status = calcStatus(member);
               const isEditing = editingId === member.id;
-              const isActive = status.label === '現役';
+              const isActive = status.label === '現役'; // 退会以外はすべて現役扱い
 
               return (
                 <tr
@@ -100,7 +92,7 @@ export const MembersList: React.FC<MembersListProps> = ({
 
                   {/* 氏名 + 年齢 */}
                   <td className="px-4 py-3 border-x font-semibold text-gray-800">
-                    <div className={!isActive ? 'line-through text-gray-400' : ''}>{member.name}</div>
+                    <div className={!isActive ? 'text-gray-400' : ''}>{member.name}</div>
                     <span className="block text-xs font-normal text-gray-400">{member.kana}</span>
                     {age !== null && (
                       <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-indigo-600 font-medium">

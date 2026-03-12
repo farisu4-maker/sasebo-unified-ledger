@@ -15,6 +15,7 @@ export const Settings: React.FC<SettingsProps> = ({
   members, transactions, expenses, budgets, fiscalYear, onCloseFiscalYear
 }) => {
   const [isClosing, setIsClosing] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
   const [closeMessage, setCloseMessage] = useState<string | null>(null);
 
   const handleExport = () => {
@@ -120,6 +121,35 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   };
 
+  /**
+   * 決算取り消し（Undo Rollover）
+   *   1. 対象年度の final_balance をクリア
+   *   2. 次年度の「次年度繰越（システム生成）」行を空白で上書き
+   */
+  const handleUndoRollover = async () => {
+    if (!window.confirm(
+      `${fiscalYear}年度の決算処理を取り消しますか？\n年度確定残高がクリアされ、${fiscalYear + 1}年度の期首繰越レコードが削除されます。`
+    )) return;
+
+    setIsUndoing(true);
+    setCloseMessage(null);
+
+    try {
+      const success = await GoogleSheetsService.undoFiscalYear(fiscalYear);
+      if (success) {
+        setCloseMessage(`${fiscalYear}年度の決算取り消しが完了しました。予算データを再確認してください。`);
+        onCloseFiscalYear();
+      } else {
+        setCloseMessage(`取り消し対象の決算データが見つかりませんでした（決算未実行の可能性）。`);
+      }
+    } catch (e) {
+      console.error(e);
+      setCloseMessage('処理中に想定外のエラーが発生しました。');
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">システム設定</h2>
@@ -199,6 +229,35 @@ export const Settings: React.FC<SettingsProps> = ({
             )}
             決算処理を実行して次年度へ繰越
           </button>
+
+          {/* 決算取り消し（誤操作防止） */}
+          <div className="mt-6 pt-4 border-t border-red-100">
+            <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              決算取り消し（Undo Rollover）
+            </h4>
+            <p className="text-xs text-gray-500 mb-3">
+              誤って決算処理を実行した場合はここから元に戻せます。<br />
+              「{fiscalYear}年度 final_balance」をクリアし、「{fiscalYear + 1}年度の期首繰越レコード」を削除します。
+            </p>
+            <button
+              onClick={handleUndoRollover}
+              disabled={isUndoing}
+              className={`font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm flex items-center ${
+                isUndoing ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-red-50 border border-red-300 text-red-700 hover:bg-red-100'
+              }`}
+            >
+              {isUndoing && (
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              ↺ {fiscalYear}年度の決算を取り消す
+            </button>
+          </div>
         </section>
       </div>
     </div>
