@@ -1,5 +1,6 @@
 import React from 'react';
 import { Member, Transaction, Expense, Budget } from '../types/index';
+import { sortMembers } from '../utils/memberSort';
 
 interface AuditReportProps {
   members: Member[];
@@ -101,8 +102,9 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     spo: calculateHeadcount('スポ少')
   };
 
-  // ── 個人別年間納入明細表（実データ集計） ───────────────────
-  // 「両方」所属の拳士は道院行・スポ少行に分けて表示
+  // ── 個人別年間納入明細表 ────────────────────────────────
+  // ポイント：現在の所属が「道院のみ」でも「スポ少に入金実績があれば」その行を追加
+  //           → 過去実績の隠蔽を防ぐ
   type MemberRow = {
     key: string;
     memberId: string;
@@ -112,19 +114,46 @@ export const AuditReport: React.FC<AuditReportProps> = ({
     isFirstRow: boolean;
   };
 
+  // 在籍（退会前）メンバーを役職→ID順でソート
+  const activeMembers = sortMembers(
+    members.filter(m => !m.leaveDate || m.leaveDate > fyStart)
+  );
+
+  // メンバーIDごとに今年度の入金実績のある団体セットを作成
+  const txOrgsByMember = new Map<string, Set<'道院' | 'スポ少'>>();
+  currentTransactions.forEach(tx => {
+    if (!txOrgsByMember.has(tx.memberId)) {
+      txOrgsByMember.set(tx.memberId, new Set());
+    }
+    txOrgsByMember.get(tx.memberId)!.add(tx.organization);
+  });
+
   const memberRows: MemberRow[] = [];
-  // 在籍メンバーのみ + joinDate 昇順ソート（古い順）
-  const activeMembers = members
-    .filter(m => !m.leaveDate || m.leaveDate > fyStart)
-    .sort((a, b) => (a.joinDate || '').localeCompare(b.joinDate || ''));
 
   activeMembers.forEach(m => {
-    if (m.organization === '両方') {
-      memberRows.push({ key: `${m.id}_道院`,  memberId: m.id, name: m.name, org: '道院',   isBoth: true, isFirstRow: true  });
-      memberRows.push({ key: `${m.id}_スポ少`, memberId: m.id, name: m.name, org: 'スポ少', isBoth: true, isFirstRow: false });
-    } else if (m.organization === '道院' || m.organization === 'スポ少') {
-      memberRows.push({ key: m.id, memberId: m.id, name: m.name, org: m.organization, isBoth: false, isFirstRow: true });
-    }
+    // 现在の所属から行うべき団体セット
+    const orgsFromMembership = new Set<'道院' | 'スポ少'>();
+    if (m.organization === '道院' || m.organization === '両方') orgsFromMembership.add('道院');
+    if (m.organization === 'スポ少' || m.organization === '両方') orgsFromMembership.add('スポ少');
+
+    // 入金実績がある団体も追加（過去実績隠蔽防止）
+    const txOrgs = txOrgsByMember.get(m.id) || new Set<'道院' | 'スポ少'>();
+    txOrgs.forEach(org => orgsFromMembership.add(org));
+
+    const orgsArray = Array.from(orgsFromMembership).sort(); // ['スポ少','道院'] or single
+    const isBoth = orgsArray.length >= 2;
+
+    orgsArray.forEach((org, idx) => {
+      const key = isBoth ? `${m.id}_${org}` : m.id;
+      memberRows.push({
+        key,
+        memberId: m.id,
+        name: m.name,
+        org,
+        isBoth,
+        isFirstRow: idx === 0,
+      });
+    });
   });
 
   // 月番号（年度順）から YYYY-MM 形式を取得
@@ -272,7 +301,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             </h1>
           </div>
           <p className="text-xs text-gray-500 mb-2">
-            ※加入日（古い順）で並べています。「両方」所属の拳士は道院・スポ少の各行に分けて表示。金額はT_Transactionsの実績値。
+            ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の各行に表示。金額はT_Transactionsの実績値。
           </p>
           <table className="min-w-full text-center text-xs border border-gray-600">
             <thead className="bg-gray-100 border-b border-gray-600 font-bold">
@@ -287,7 +316,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             </thead>
             <tbody>
               {rowData.map((row, idx) => {
-                // 「両方」の場合: isFirstRow=true（道院行）のみ氏名セルを rowSpan=2 で描画
+                // 「両方」の場合: isFirstRow=true（最初の組織行）のみ氏名セルを rowSpan=2 で描画
                 const nameCellContent = row.isBoth && row.isFirstRow ? (
                   <td
                     rowSpan={2}
@@ -300,7 +329,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                   <td className="border border-gray-600 py-1 px-2 text-left font-medium">
                     {row.name}
                   </td>
-                ) : null; // 「両方」スポ少行は氏名セルなし（rowSpanで結合済）
+                ) : null; // 「両方」2行目は氏名セルなし（rowSpanで結合済）
 
                 return (
                   <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>

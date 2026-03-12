@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Member } from '../types';
+import { Member, Organization } from '../types';
+import { parseJapaneseDate } from '../utils/dateParser';
+import { sortMembers } from '../utils/memberSort';
+import { GoogleSheetsService } from '../services/GoogleSheetsService';
 
 interface MembersListProps {
   members: Member[];
   onSelectMember: (member: Member) => void;
-  onQuickEntry: (member: Member) => void;
   onMemberUpdate: (member: Member) => void;
 }
 
@@ -19,49 +21,75 @@ function calcAge(birthDate: string): number {
 }
 
 /**
- * ステータス判定：leaveDate に日付が入っていれば「退会」、それ以外は「現役」
- * （「退会予定」「休眠」などの中間ステータスは廃止）
+ * ステータス判定：leaveDate に過去の日付があれば「退会」、それ以外は「現役」
  */
 function calcStatus(member: Member): { label: string; color: string } {
   if (member.leaveDate && member.leaveDate.trim() !== '') {
-    // 今日以前の日付のみ「退会」（未来日付・当日は「現役」または「退会予定」表示）
     const today = new Date().toISOString().split('T')[0];
     if (member.leaveDate <= today) {
       return { label: '退会', color: 'bg-gray-200 text-gray-600' };
     }
-    // 未来日付は現役扱い
     return { label: '現役', color: 'bg-green-100 text-green-800' };
   }
   return { label: '現役', color: 'bg-green-100 text-green-800' };
 }
 
+const ORG_OPTIONS: Organization[] = ['道院', 'スポ少', '両方'];
+
 export const MembersList: React.FC<MembersListProps> = ({
-  members, onSelectMember, onQuickEntry, onMemberUpdate
+  members, onSelectMember, onMemberUpdate
 }) => {
-  // インライン編集中のメンバーID管理
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editJoinDate, setEditJoinDate] = useState('');
   const [editLeaveDate, setEditLeaveDate] = useState('');
+  const [editOrg, setEditOrg] = useState<Organization>('道院');
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const startEdit = (member: Member) => {
     setEditingId(member.id);
     setEditJoinDate(member.joinDate || '');
     setEditLeaveDate(member.leaveDate || '');
+    setEditOrg(member.organization as Organization);
+    setDateError(null);
   };
 
-  const cancelEdit = () => setEditingId(null);
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDateError(null);
+  };
 
-  const commitEdit = (member: Member) => {
+  const commitEdit = async (member: Member) => {
+    // 日付を自動変換
+    const parsedJoin = parseJapaneseDate(editJoinDate);
+    if (!parsedJoin) {
+      setDateError(`加入日「${editJoinDate}」の形式が認識できません。例：R7.4.20 / 2025/04/20`);
+      return;
+    }
+
+    let parsedLeave: string | undefined = undefined;
+    if (editLeaveDate.trim() !== '') {
+      const pl = parseJapaneseDate(editLeaveDate);
+      if (!pl) {
+        setDateError(`脱退日「${editLeaveDate}」の形式が認識できません。例：R7.4.20 / 2025/04/20`);
+        return;
+      }
+      parsedLeave = pl;
+    }
+
     const updated: Member = {
       ...member,
-      joinDate: editJoinDate,
-      leaveDate: editLeaveDate.trim() !== '' ? editLeaveDate : undefined,
-      // leaveDate があれば退회、なければ現役
-      status: editLeaveDate.trim() !== '' ? '退会' : '現役',
+      joinDate: parsedJoin,
+      leaveDate: parsedLeave,
+      organization: editOrg,
+      status: parsedLeave ? '退会' : '現役',
     };
     onMemberUpdate(updated);
+    await GoogleSheetsService.updateMember(updated);
     setEditingId(null);
+    setDateError(null);
   };
+
+  const sorted = sortMembers(members);
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
@@ -72,6 +100,7 @@ export const MembersList: React.FC<MembersListProps> = ({
             <tr>
               <th scope="col" className="px-4 py-3 border-x">ID</th>
               <th scope="col" className="px-4 py-3 border-x">氏名 / 年齢</th>
+              <th scope="col" className="px-4 py-3 border-x">役職</th>
               <th scope="col" className="px-4 py-3 border-x">所属</th>
               <th scope="col" className="px-4 py-3 border-x">加入日 / 脱退日</th>
               <th scope="col" className="px-4 py-3 border-x">ステータス</th>
@@ -80,11 +109,11 @@ export const MembersList: React.FC<MembersListProps> = ({
             </tr>
           </thead>
           <tbody>
-            {members.map((member) => {
+            {sorted.map((member) => {
               const age = member.birthDate ? calcAge(member.birthDate) : null;
               const status = calcStatus(member);
               const isEditing = editingId === member.id;
-              const isActive = status.label === '現役'; // 退会以外はすべて現役扱い
+              const isActive = status.label === '現役';
 
               return (
                 <tr
@@ -96,7 +125,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   {/* ID */}
                   <td className="px-4 py-3 border-x text-gray-900 text-base font-medium">{member.id}</td>
 
-                  {/* 氏名 + 年齢 */}
+                  {/* 氏名 + ヨミガナ + 年齢 */}
                   <td className="px-4 py-3 border-x">
                     <div className={`font-bold text-base ${!isActive ? 'text-gray-400' : 'text-gray-900'}`}>{member.name}</div>
                     {(member.yomigana || member.kana) && (
@@ -114,37 +143,64 @@ export const MembersList: React.FC<MembersListProps> = ({
                     )}
                   </td>
 
-                  {/* 所属 */}
-                  <td className="px-4 py-3 border-x">
-                    <div className="flex items-center space-x-1">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        member.organization === '道院'   ? 'bg-blue-100 text-blue-800' :
-                        member.organization === 'スポ少'  ? 'bg-emerald-100 text-emerald-800' :
-                        'bg-purple-100 text-purple-800'
-                      }`}>
-                        {member.organization}
+                  {/* 役職 */}
+                  <td className="px-4 py-3 border-x text-sm">
+                    {member.role ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                        {member.role}
                       </span>
-                    </div>
+                    ) : (
+                      <span className="text-gray-300 text-xs">―</span>
+                    )}
+                  </td>
+
+                  {/* 所属（編集時はドロップダウン） */}
+                  <td className="px-4 py-3 border-x">
+                    {isEditing ? (
+                      <select
+                        value={editOrg}
+                        onChange={e => setEditOrg(e.target.value as Organization)}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        {ORG_OPTIONS.map(o => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex items-center space-x-1">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          member.organization === '道院'   ? 'bg-blue-100 text-blue-800' :
+                          member.organization === 'スポ少'  ? 'bg-emerald-100 text-emerald-800' :
+                          'bg-purple-100 text-purple-800'
+                        }`}>
+                          {member.organization}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   {/* 加入日 / 脱退日（インライン編集） */}
                   <td className="px-4 py-3 border-x text-xs">
                     {isEditing ? (
                       <div className="space-y-1">
+                        {dateError && (
+                          <p className="text-red-600 text-xs font-bold mb-1">{dateError}</p>
+                        )}
                         <label className="block text-gray-500">加入日</label>
                         <input
-                          type="date"
+                          type="text"
                           value={editJoinDate}
                           onChange={e => setEditJoinDate(e.target.value)}
-                          className="border border-gray-300 rounded px-2 py-1 w-36 text-xs focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="R7.4.20 / 2025/04/20 / 2025-04-20"
+                          className="border border-gray-300 rounded px-2 py-1 w-44 text-xs focus:ring-indigo-500 focus:border-indigo-500"
                         />
                         <label className="block text-gray-500 mt-1">脱退日</label>
                         <input
-                          type="date"
+                          type="text"
                           value={editLeaveDate}
                           onChange={e => setEditLeaveDate(e.target.value)}
-                          className="border border-gray-300 rounded px-2 py-1 w-36 text-xs focus:ring-rose-500 focus:border-rose-500"
-                          placeholder="脱退予定なし"
+                          placeholder="脱退なしは空欄"
+                          className="border border-gray-300 rounded px-2 py-1 w-44 text-xs focus:ring-rose-500 focus:border-rose-500"
                         />
                       </div>
                     ) : (
@@ -193,18 +249,6 @@ export const MembersList: React.FC<MembersListProps> = ({
                       <div className="flex gap-1 flex-wrap">
                         {isActive && (
                           <button
-                            onClick={() => onQuickEntry(member)}
-                            className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
-                            title="当月分の基本会費をワンタップで現金納入記録"
-                          >
-                            <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            クイック
-                          </button>
-                        )}
-                        {isActive && (
-                          <button
                             onClick={() => onSelectMember(member)}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs"
                           >
@@ -214,12 +258,12 @@ export const MembersList: React.FC<MembersListProps> = ({
                         <button
                           onClick={() => startEdit(member)}
                           className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
-                          title="加入日・脱退日を編集"
+                          title="加入日・脱退日・所属を編集"
                         >
                           <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          日付編集
+                          編集
                         </button>
                       </div>
                     )}

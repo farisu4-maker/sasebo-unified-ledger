@@ -5,6 +5,7 @@ export interface Member {
   name: string;
   kana: string;       // カタカナ氏名（旧フィールド、後方互換）
   yomigana?: string;  // スプレッドシート L列 から取得するヨミガナ
+  role?: string;      // スプレッドシート M列 から取得する役職（支部長 / 副支部長 / 監事 等）
   birthDate: string; // YYYY-MM-DD
   joinDate: string;  // YYYY-MM-DD
   leaveDate?: string; // YYYY-MM-DD (null/undefined if active)
@@ -14,6 +15,7 @@ export interface Member {
   exemptionFlag: boolean;
   notes?: string; // 備考
 }
+
 
 export interface FeeCondition {
   ageLimit?: number;

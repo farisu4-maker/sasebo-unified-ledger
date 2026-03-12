@@ -186,74 +186,6 @@ function App() {
   }, [members, activeFiscalYear, showNotification, showSyncError]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  //  クイック入金ハンドラ
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  const handleQuickEntry = useCallback(async (targetMember: Member) => {
-    const today = new Date().toISOString().split('T')[0];
-    const itemsToPay: { item: string; amount: number; org: '道院' | 'スポ少' }[] = [];
-
-    const familyMembers = targetMember.representativeId
-      ? members.filter(m =>
-          m.representativeId === targetMember.representativeId &&
-          m.status === '現役' &&
-          m.joinDate <= today &&
-          (!m.leaveDate || m.leaveDate >= today)
-        )
-      : [];
-    const isFamilyDiscountEligible = familyMembers.length >= 3;
-
-    if (targetMember.organization === '道院' || targetMember.organization === '両方') {
-      const conditionName = isFamilyDiscountEligible ? '信徒香資（月・家族割引）' : '信徒香資（月）';
-      const fee = sampleFeeItems.find(f => f.name === conditionName);
-      if (fee) itemsToPay.push({ item: '信徒香資（月）', amount: fee.amount, org: '道院' });
-    }
-    if (targetMember.organization === 'スポ少' || targetMember.organization === '両方') {
-      const fee = sampleFeeItems.find(f => f.name === 'スポ少会費（月）');
-      if (fee) itemsToPay.push({ item: 'スポ少会費（月）', amount: fee.amount, org: 'スポ少' });
-    }
-    if (itemsToPay.length === 0) return;
-
-    const now = new Date();
-    const newTxs: Transaction[] = itemsToPay.map((it, idx) => ({
-      id: `TQ${Date.now()}${idx}`,
-      date: today,
-      memberId: targetMember.id,
-      organization: it.org,
-      item: it.item,
-      amount: it.amount,
-      paymentMethod: '現金',
-      enteredById: 'U001',
-      timestamp: now.toISOString(),
-      targetMonth: getCurrentMonth(),
-      fiscalYear: activeFiscalYear,
-    }));
-
-    setTransactions(prev => [...newTxs, ...prev]);
-
-    // 各トランザクションを並列でシートに書き込み
-    const results = await Promise.all(
-      newTxs.map(tx => {
-        OfflineQueueManager.enqueue('TRANSACTION', tx);
-        return GoogleSheetsService.syncTransaction(tx).then(ok => {
-          if (ok) OfflineQueueManager.dequeue(tx.id, 'TRANSACTION');
-          return ok;
-        });
-      })
-    );
-
-    const failedCount = results.filter(r => !r).length;
-    const totalAmount = itemsToPay.reduce((s, i) => s + i.amount, 0);
-    showNotification(`${targetMember.name}の当月分会費 (${totalAmount.toLocaleString()}円) をクイック登録しました ⚡`);
-    if (failedCount > 0) showSyncError(`${failedCount}件がSheets書き込みに失敗しました。オフラインキューに保持します。`);
-
-    try {
-      const refreshed = await GoogleSheetsService.fetchTransactions();
-      if (refreshed.length > 0) setTransactions(refreshed);
-    } catch { /* スキップ */ }
-  }, [members, activeFiscalYear, showNotification, showSyncError]);
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  支出ハンドラ
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -413,7 +345,6 @@ function App() {
           <MembersList
             members={displayMembers}
             onSelectMember={setSelectedMember}
-            onQuickEntry={handleQuickEntry}
             onMemberUpdate={handleMemberUpdate}
           />
         </div>

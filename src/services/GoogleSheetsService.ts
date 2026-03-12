@@ -23,12 +23,12 @@ export class GoogleSheetsService {
   //  M_Members
   //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日,
   //  F: 所属区分, G: 代表者ID, H: 状態, I: 脱退日,
-  //  J: 免除フラグ, K: 備考, L: ヨミガナ
+  //  J: 免除フラグ, K: 備考, L: ヨミガナ, M: 役職
   // ============================================================
 
   static async fetchMembers(): Promise<Member[]> {
     try {
-      const res = await this.fetchApi('M_Members!A2:L');
+      const res = await this.fetchApi('M_Members!A2:M');
       const data = await res.json();
       if (!data.values) return [];
 
@@ -45,6 +45,7 @@ export class GoogleSheetsService {
         exemptionFlag: row[9] === 'TRUE' || row[9] === 'true',
         notes: row[10] || '',
         yomigana: row[11] || undefined,
+        role: row[12] || undefined,        // M列：役職
       }));
     } catch (e) {
       console.error('Failed to fetch M_Members', e);
@@ -82,10 +83,11 @@ export class GoogleSheetsService {
         member.exemptionFlag ? 'TRUE' : 'FALSE',
         member.notes || '',
         member.yomigana || '',  // L列：ヨミガナ
+        member.role || '',      // M列：役職
       ]];
 
       const updateRes = await this.batchUpdateValues([{
-        range: `M_Members!A${sheetRow}:L${sheetRow}`,
+        range: `M_Members!A${sheetRow}:M${sheetRow}`,
         values
       }]);
 
