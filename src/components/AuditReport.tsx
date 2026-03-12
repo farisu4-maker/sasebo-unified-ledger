@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Member, Transaction, Expense, Budget } from '../types/index';
+import { PaymentStatusMatrix } from './PaymentStatusMatrix';
 import { sortMembers } from '../utils/memberSort';
 
 interface AuditReportProps {
@@ -10,6 +11,8 @@ interface AuditReportProps {
   fiscalYear: number;
 }
 
+type ReportTab = 'report' | 'matrix';
+
 export const AuditReport: React.FC<AuditReportProps> = ({
   members,
   transactions,
@@ -17,6 +20,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   budgets,
   fiscalYear
 }) => {
+  const [reportTab, setReportTab] = useState<ReportTab>('report');
 
   const handlePrint = () => {
     window.print();
@@ -187,6 +191,48 @@ export const AuditReport: React.FC<AuditReportProps> = ({
 
   return (
     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 printable-area">
+
+      {/* ── タブ切り替え ───────────────────────────── */}
+      <div className="flex gap-1 border-b border-gray-200 mb-6 no-print">
+        <button
+          onClick={() => setReportTab('report')}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            reportTab === 'report'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          📊 収支報告書
+        </button>
+        <button
+          onClick={() => setReportTab('matrix')}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            reportTab === 'matrix'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          ✅ 月別納入チェック表
+        </button>
+      </div>
+
+      {/* ── 月別納入チェック表タブ ──────────────────── */}
+      {reportTab === 'matrix' && (
+        <div>
+          <h3 className="text-lg font-bold text-gray-800 mb-4">
+            令和{fiscalYear - 2018}年度 月別納入チェック表
+          </h3>
+          <PaymentStatusMatrix
+            members={members}
+            transactions={transactions}
+            fiscalYear={fiscalYear}
+          />
+        </div>
+      )}
+
+      {/* ── 収支報告書タブ ───────────────────────── */}
+      {reportTab === 'report' && (
+      <div>
       <style>{`
         @media print {
           body * { visibility: hidden; }
@@ -370,6 +416,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
         </section>
 
       </div>
+      )}
     </div>
   );
 };

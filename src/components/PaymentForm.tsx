@@ -135,6 +135,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                 <option value="宗教年費">宗教年費</option>
                 {['道院', '両方'].includes(member.organization) && <option value="信徒香資（月）">信徒香資（月）</option>}
                 {['スポ少', '両方'].includes(member.organization) && <option value="スポ少会費（月）">スポ少会費（月）</option>}
+                <optgroup label="── 過年度分回収 ──">
+                  <option value="前年度未納分回収（道院）">前年度未納分回収（道院）</option>
+                  <option value="前年度未納分回収（スポ少）">前年度未納分回収（スポ少）</option>
+                </optgroup>
                 <option value="その他">その他</option>
               </select>
             </div>

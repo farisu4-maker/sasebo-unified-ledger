@@ -373,6 +373,7 @@ function App() {
         <HistoryList
           transactions={transactions}
           expenses={expenses}
+          members={members}
           fiscalYear={activeFiscalYear}
           onCancelTransaction={handleCancelTransaction}
           onCancelExpense={handleCancelExpense}
