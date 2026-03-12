@@ -4,11 +4,11 @@ import { getValidToken } from '../utils/googleAuth';
 const SPREADSHEET_ID = (import.meta as any).env.VITE_GOOGLE_SPREADSHEET_ID;
 
 export class GoogleSheetsService {
-  
+
   private static async fetchApi(range: string, config: RequestInit = {}) {
     if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
     const token = await getValidToken();
-    
+
     return fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`, {
       ...config,
       headers: {
@@ -19,16 +19,19 @@ export class GoogleSheetsService {
     });
   }
 
-  /**
-   * メンバー情報をスプレッドシート(M_Members)から取得します
-   * A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日, F: 所属区分, G: 代表者ID, H: 状態, I: 脱退日, J: 免除フラグ
-   */
+  // ============================================================
+  //  M_Members
+  //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日,
+  //  F: 所属区分, G: 代表者ID, H: 状態, I: 脱退日,
+  //  J: 免除フラグ, K: 備考
+  // ============================================================
+
   static async fetchMembers(): Promise<Member[]> {
     try {
-      const res = await this.fetchApi('M_Members!A2:J');
+      const res = await this.fetchApi('M_Members!A2:K');
       const data = await res.json();
       if (!data.values) return [];
-      
+
       return data.values.map((row: string[]) => ({
         id: row[0],
         name: row[1],
@@ -37,30 +40,77 @@ export class GoogleSheetsService {
         joinDate: row[4],
         organization: row[5] as Organization | '両方',
         representativeId: row[6] || undefined,
-        status: (row[7] as '現役' | '休眠') || '現役',
+        status: (row[7] as '現役' | '休眠' | '退会') || '現役',
         leaveDate: row[8] || undefined,
         exemptionFlag: row[9] === 'TRUE' || row[9] === 'true',
         notes: row[10] || ''
       }));
     } catch (e) {
       console.error('Failed to fetch M_Members', e);
-      return []; // オフライン時などは空配列（App.tsxでキャッシュを使う考慮が必要）
+      return [];
     }
   }
 
   /**
-   * 予算情報をスプレッドシート(M_Budgets)から取得します
-   * A: 組織, B: 勘定科目, C: 年間予算額
+   * メンバー情報を更新します（M_Membersの該当行を全列UPDATE）
+   * ID検索 → 行番号特定 → batchUpdate
    */
+  static async updateMember(member: Member): Promise<boolean> {
+    try {
+      // A列でID検索（ヘッダー込み）
+      const res = await this.fetchApi('M_Members!A:A');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      // row[0] = ヘッダー "ID", row[1] 以降がデータ → シート行番号 = index + 1
+      const rowIndex = data.values.findIndex((row: string[]) => row[0] === member.id);
+      if (rowIndex === -1) {
+        console.error(`Member ID ${member.id} not found in M_Members`);
+        return false;
+      }
+      const sheetRow = rowIndex + 1; // 1-indexed
+
+      const values = [[
+        member.id,
+        member.name,
+        member.kana,
+        member.birthDate,
+        member.joinDate,
+        member.organization,
+        member.representativeId || '',
+        member.status,
+        member.leaveDate || '',
+        member.exemptionFlag ? 'TRUE' : 'FALSE',
+        member.notes || ''
+      ]];
+
+      const updateRes = await this.batchUpdateValues([{
+        range: `M_Members!A${sheetRow}:K${sheetRow}`,
+        values
+      }]);
+
+      return updateRes.ok;
+    } catch (e) {
+      console.error('Failed to update member', e);
+      return false;
+    }
+  }
+
+  // ============================================================
+  //  M_Budgets
+  //  A: 組織, B: 勘定科目, C: 年間予算額, D: 期首繰越,
+  //  E: 期末確定額, F: 年度
+  // ============================================================
+
   static async fetchBudgets(): Promise<Budget[]> {
     try {
       const res = await this.fetchApi('M_Budgets!A2:F');
       const data = await res.json();
       if (!data.values) return [];
-      
+
       return data.values.map((row: string[], index: number) => ({
         id: `B${index}`,
-        rowNumber: index + 2, // 2行目から始まるため
+        rowNumber: index + 2,
         organization: row[0] as Organization | '両方',
         category: row[1],
         amount: parseInt(row[2] || '0', 10),
@@ -74,18 +124,36 @@ export class GoogleSheetsService {
     }
   }
 
-  /**
-   * 既存トランザクションIDが存在するかチェックします（冪等性用）
-   */
-  private static async checkExists(range: string, id: string): Promise<boolean> {
+  // ============================================================
+  //  T_Transactions
+  //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
+  //  F: 費目, G: 金額, H: 支払方法, I: 入力者ID,
+  //  J: 取消フラグ, K: 年度, L: 対象月(YYYY-MM)
+  // ============================================================
+
+  static async fetchTransactions(): Promise<Transaction[]> {
     try {
-      const res = await this.fetchApi(range);
+      const res = await this.fetchApi('T_Transactions!A2:L');
       const data = await res.json();
-      if (!data.values) return false;
-      // 1列目 (A列) が ID の想定
-      return data.values.some((row: string[]) => row[0] === id);
+      if (!data.values) return [];
+
+      return data.values.map((row: string[]) => ({
+        id: row[0],
+        timestamp: row[1],
+        date: row[2],
+        organization: row[3] as '道院' | 'スポ少',
+        memberId: row[4],
+        item: row[5],
+        amount: parseInt(row[6] || '0', 10),
+        paymentMethod: row[7],
+        enteredById: row[8],
+        isCancelled: row[9] === 'TRUE' || row[9] === 'true',
+        fiscalYear: parseInt(row[10] || String(new Date().getFullYear()), 10),
+        targetMonth: row[11] || undefined
+      }));
     } catch (e) {
-      return false; // 通信エラーなどは安全を見てfalse（この後Appendでコケることでキューに残す）
+      console.error('Failed to fetch T_Transactions', e);
+      return [];
     }
   }
 
@@ -94,15 +162,12 @@ export class GoogleSheetsService {
    */
   static async syncTransaction(tx: Transaction): Promise<boolean> {
     try {
-      // 1. スプレッドシート側のT_Transactionsから指定IDが存在するか確認（二重書き込み防止）
-      // 注意: 件数が多い場合はAPI制限を考慮して一括取得＆キャッシュする設計が望ましいが今回要件優先
       const exists = await this.checkExists('T_Transactions!A:A', tx.id);
       if (exists) {
         console.log(`Transaction ${tx.id} already exists in Sheet, skipping append.`);
-        return true; 
+        return true;
       }
 
-      // 2. T_Transactions へ追記
       const values = [[
         tx.id,
         tx.timestamp,
@@ -113,11 +178,12 @@ export class GoogleSheetsService {
         tx.amount,
         tx.paymentMethod,
         tx.enteredById,
-        tx.isCancelled ? 'TRUE' : 'FALSE', // J列
-        tx.fiscalYear || new Date().getFullYear() // K列: fiscalYear
+        tx.isCancelled ? 'TRUE' : 'FALSE',      // J列
+        tx.fiscalYear || new Date().getFullYear(), // K列
+        tx.targetMonth || ''                       // L列: 対象月
       ]];
 
-      const res = await this.fetchApi('T_Transactions!A:K:append?valueInputOption=USER_ENTERED', {
+      const res = await this.fetchApi('T_Transactions!A:L:append?valueInputOption=USER_ENTERED', {
         method: 'POST',
         body: JSON.stringify({ values })
       });
@@ -126,7 +192,48 @@ export class GoogleSheetsService {
       return true;
     } catch (e) {
       console.error('Failed to sync transaction', e);
-      return false; // オフラインエラーやサーバー障害の場合はfalseを返し、キューに残す
+      return false;
+    }
+  }
+
+  /**
+   * トランザクションを論理削除（取消）します
+   * J列（インデックス9）の取消フラグを TRUE に
+   */
+  static async cancelTransaction(id: string): Promise<boolean> {
+    return this.updateCancelFlag('T_Transactions!A:A', id, 9);
+  }
+
+  // ============================================================
+  //  T_Expenses
+  //  A: ID, B: timestamp, C: 日付, D: 組織, E: 勘定科目,
+  //  F: 摘要, G: 金額, H: 支払方法, I: 領収書URL,
+  //  J: 入力者ID, K: 取消フラグ, L: 年度
+  // ============================================================
+
+  static async fetchExpenses(): Promise<Expense[]> {
+    try {
+      const res = await this.fetchApi('T_Expenses!A2:L');
+      const data = await res.json();
+      if (!data.values) return [];
+
+      return data.values.map((row: string[]) => ({
+        id: row[0],
+        timestamp: row[1],
+        date: row[2],
+        organization: row[3] as '道院' | 'スポ少' | '両方',
+        category: row[4],
+        description: row[5],
+        amount: parseInt(row[6] || '0', 10),
+        paymentMethod: row[7],
+        receiptUrl: row[8],
+        enteredById: row[9],
+        isCancelled: row[10] === 'TRUE' || row[10] === 'true',
+        fiscalYear: parseInt(row[11] || String(new Date().getFullYear()), 10)
+      }));
+    } catch (e) {
+      console.error('Failed to fetch T_Expenses', e);
+      return [];
     }
   }
 
@@ -137,7 +244,7 @@ export class GoogleSheetsService {
     try {
       const exists = await this.checkExists('T_Expenses!A:A', expense.id);
       if (exists) {
-        return true; 
+        return true;
       }
 
       const values = [[
@@ -151,8 +258,8 @@ export class GoogleSheetsService {
         expense.paymentMethod,
         expense.receiptUrl || '',
         expense.enteredById,
-        expense.isCancelled ? 'TRUE' : 'FALSE', // 11列目 (K列)
-        expense.fiscalYear || new Date().getFullYear() // 12列目 (L列)
+        expense.isCancelled ? 'TRUE' : 'FALSE',      // K列
+        expense.fiscalYear || new Date().getFullYear() // L列
       ]];
 
       const res = await this.fetchApi('T_Expenses!A:L:append?valueInputOption=USER_ENTERED', {
@@ -169,63 +276,115 @@ export class GoogleSheetsService {
   }
 
   /**
-   * トランザクション（入金履歴）を取得します
+   * 支出を論理削除（取消）します
+   * K列（インデックス10）の取消フラグを TRUE に
    */
-  static async fetchTransactions(): Promise<Transaction[]> {
+  static async cancelExpense(id: string): Promise<boolean> {
+    return this.updateCancelFlag('T_Expenses!A:A', id, 10);
+  }
+
+  // ============================================================
+  //  年度決算処理（Rollover）
+  // ============================================================
+
+  static async closeFiscalYear(
+    finalBalancesUpdates: { rowNumber: number, finalBalance: number }[],
+    newBudgets: Budget[]
+  ): Promise<boolean> {
     try {
-      const res = await this.fetchApi('T_Transactions!A2:K');
-      const data = await res.json();
-      if (!data.values) return [];
-      
-      return data.values.map((row: string[]) => ({
-        id: row[0],
-        timestamp: row[1],
-        date: row[2],
-        organization: row[3] as '道院' | 'スポ少',
-        memberId: row[4],
-        item: row[5],
-        amount: parseInt(row[6] || '0', 10),
-        paymentMethod: row[7],
-        enteredById: row[8],
-        isCancelled: row[9] === 'TRUE' || row[9] === 'true', // J列
-        fiscalYear: parseInt(row[10] || String(new Date().getFullYear()), 10) // K列
-      }));
+      if (finalBalancesUpdates.length > 0) {
+        const data = finalBalancesUpdates.map(u => ({
+          range: `M_Budgets!E${u.rowNumber}`,
+          values: [[u.finalBalance]]
+        }));
+        await this.batchUpdateValues(data);
+      }
+
+      if (newBudgets.length > 0) {
+        const values = newBudgets.map(b => [
+          b.organization,
+          b.category,
+          b.amount,
+          b.initialBalance || 0,
+          '',
+          b.year
+        ]);
+        const appendRes = await this.fetchApi('M_Budgets!A:F:append?valueInputOption=USER_ENTERED', {
+          method: 'POST',
+          body: JSON.stringify({ values })
+        });
+        if (!appendRes.ok) throw new Error(await appendRes.text());
+      }
+      return true;
     } catch (e) {
-      console.error('Failed to fetch T_Transactions', e);
-      return [];
+      console.error('Failed to close fiscal year', e);
+      return false;
+    }
+  }
+
+  // ============================================================
+  //  共通ユーティリティ
+  // ============================================================
+
+  /**
+   * 既存IDが存在するかチェック（冪等性用）
+   * A列のみ取得しIDを検索する
+   */
+  private static async checkExists(range: string, id: string): Promise<boolean> {
+    try {
+      const res = await this.fetchApi(range);
+      const data = await res.json();
+      if (!data.values) return false;
+      return data.values.some((row: string[]) => row[0] === id);
+    } catch (e) {
+      return false;
     }
   }
 
   /**
-   * 支出履歴を取得します
+   * 取消フラグを TRUE に更新する汎用メソッド
+   * range: 例 'T_Transactions!A:A'（ヘッダー込みで取得）
+   * cancelColumnIndex: 0始まりの列インデックス（J=9, K=10 など）
+   *
+   * 【行番号の計算】
+   *  fetchApi で A:A を取得すると values[0] がヘッダー行になる。
+   *  データ先頭は values[1]。シート上での行番号 = findIndex の結果 + 1
    */
-  static async fetchExpenses(): Promise<Expense[]> {
+  private static async updateCancelFlag(range: string, id: string, cancelColumnIndex: number): Promise<boolean> {
     try {
-      const res = await this.fetchApi('T_Expenses!A2:L');
+      const res = await this.fetchApi(range);
       const data = await res.json();
-      if (!data.values) return [];
-      
-      return data.values.map((row: string[]) => ({
-        id: row[0],
-        timestamp: row[1],
-        date: row[2],
-        organization: row[3] as '道院' | 'スポ少' | '両方',
-        category: row[4],
-        description: row[5],
-        amount: parseInt(row[6] || '0', 10),
-        paymentMethod: row[7],
-        receiptUrl: row[8],
-        enteredById: row[9],
-        isCancelled: row[10] === 'TRUE' || row[10] === 'true', // K列
-        fiscalYear: parseInt(row[11] || String(new Date().getFullYear()), 10) // L列
-      }));
+      if (!data.values) return false;
+
+      const rowIndex = data.values.findIndex((row: string[]) => row[0] === id);
+      if (rowIndex === -1) {
+        console.error(`ID ${id} not found in ${range} for cancellation.`);
+        return false;
+      }
+
+      // values[0] がヘッダー行なので、rowIndex=1 → シート2行目
+      const sheetRow = rowIndex + 1;
+      const colLetter = String.fromCharCode(65 + cancelColumnIndex);
+      const tableName = range.split('!')[0];
+      const updateRange = `${tableName}!${colLetter}${sheetRow}`;
+
+      const updateRes = await this.fetchApi(`${updateRange}?valueInputOption=USER_ENTERED`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['TRUE']] })
+      });
+
+      if (!updateRes.ok) throw new Error(await updateRes.text());
+      return true;
     } catch (e) {
-      console.error('Failed to fetch T_Expenses', e);
-      return [];
+      console.error(`Failed to cancel ${id}`, e);
+      return false;
     }
   }
 
-  static async batchUpdateValues(data: {range: string, values: any[][]}[]) {
+  /**
+   * batchUpdate 共通メソッド
+   */
+  static async batchUpdateValues(data: { range: string, values: any[][] }[]) {
     if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
     const token = await getValidToken();
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`, {
@@ -242,106 +401,4 @@ export class GoogleSheetsService {
     if (!res.ok) throw new Error(await res.text());
     return res;
   }
-
-  /**
-   * 年度決算処理（Rollover）
-   * - 現在の年度の予算に finalBalance を記録
-   * - 次の年度の予算枠（initialBalance を設定）を新設
-   */
-  static async closeFiscalYear(
-    finalBalancesUpdates: { rowNumber: number, finalBalance: number }[],
-    newBudgets: Budget[]
-  ): Promise<boolean> {
-    try {
-      // 1. Update final balances
-      if (finalBalancesUpdates.length > 0) {
-        const data = finalBalancesUpdates.map(u => ({
-          range: `M_Budgets!E${u.rowNumber}`,
-          values: [[u.finalBalance]]
-        }));
-        await this.batchUpdateValues(data);
-      }
-
-      // 2. Append new budgets for next year
-      if (newBudgets.length > 0) {
-        const values = newBudgets.map(b => [
-          b.organization,
-          b.category,
-          b.amount,
-          b.initialBalance || 0,
-          '', // finalBalance is empty for new year
-          b.year
-        ]);
-        const appendRes = await this.fetchApi('M_Budgets!A:F:append?valueInputOption=USER_ENTERED', {
-          method: 'POST',
-          body: JSON.stringify({ values })
-        });
-        if (!appendRes.ok) throw new Error(await appendRes.text());
-      }
-      return true;
-    } catch (e) {
-      console.error('Failed to close fiscal year', e);
-      return false;
-    }
-  }
-
-  /**
-   * 取消フラグを更新するための汎用メソッド
-   */
-  private static async updateCancelFlag(range: string, id: string, cancelColumnIndex: number): Promise<boolean> {
-    try {
-      // 1. 全件取得してIDの行番号を特定する
-      const res = await this.fetchApi(range);
-      const data = await res.json();
-      if (!data.values) return false;
-
-      const rowIndex = data.values.findIndex((row: string[]) => row[0] === id);
-      if (rowIndex === -1) {
-        console.error(`ID ${id} not found in ${range} for cancellation.`);
-        return false;
-      }
-
-      // 2. 該当行の取消フラグ列だけを更新する (rowIndexは0始まり、シート行番号は2始まりを想定)
-      // 例: range が T_Transactions!A:A の場合、シート上の行は rowIndex + 1。
-      // ただし A:A でヘッダー込みの場合、ヘッダーが0行目でデータが1行目なので、シート行は rowIndex + 1。
-      const sheetRow = rowIndex + 1; 
-      
-      // cancelColumnIndexから列のアルファベットを決定
-      const colLetter = String.fromCharCode(65 + cancelColumnIndex);
-      // テーブル名を取り出す ('T_Transactions!A:A' -> 'T_Transactions')
-      const tableName = range.split('!')[0];
-      const updateRange = `${tableName}!${colLetter}${sheetRow}`;
-
-      const updateRes = await this.fetchApi(`${updateRange}?valueInputOption=USER_ENTERED`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          values: [['TRUE']]
-        })
-      });
-
-      if (!updateRes.ok) throw new Error(await updateRes.text());
-      return true;
-
-    } catch (e) {
-      console.error(`Failed to cancel ${id}`, e);
-      return false;
-    }
-  }
-
-  /**
-   * トランザクションを論理削除（取消）します
-   */
-  static async cancelTransaction(id: string): Promise<boolean> {
-    // T_TransactionsのA列でID検索、J列（インデックス9）にフラグ
-    return this.updateCancelFlag('T_Transactions!A:A', id, 9);
-  }
-
-  /**
-   * 支出を論理削除（取消）します
-   */
-  static async cancelExpense(id: string): Promise<boolean> {
-    // T_ExpensesのA列でID検索、K列（インデックス10）にフラグ
-    return this.updateCancelFlag('T_Expenses!A:A', id, 10);
-  }
-
 }

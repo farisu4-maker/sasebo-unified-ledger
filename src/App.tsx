@@ -12,51 +12,120 @@ import { Member, Organization, Transaction, Expense, Budget } from './types';
 import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 
+// 当月の YYYY-MM 文字列を返す
+function getCurrentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ── 通知バナー型定義 ─────────────────────────────────────
+type NotificationKind = 'success' | 'error';
+interface AppNotification {
+  msg: string;
+  kind: NotificationKind;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [activeOrgContext, setActiveOrgContext] = useState<Organization | '統合'>('統合');
-  const [activeFiscalYear, setActiveFiscalYear] = useState<number>(new Date().getMonth() < 3 ? new Date().getFullYear() - 1 : new Date().getFullYear()); // 4月始まり想定
-  
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
+  // 4月始まり（4月未満なら前年を年度とする）
+  const [activeFiscalYear, setActiveFiscalYear] = useState<number>(() => {
+    const now = new Date();
+    return now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  });
 
-  // ステート管理
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+
+  // ── アプリの全データを管理するステート ─────────────────
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-
   const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
   const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses);
-  
-  // オフライン・同期状態
+
+  // ── 通知バナー（成功 / エラー）─────────────────────────
+  const [notification, setNotification] = useState<AppNotification | null>(null);
+
+  // ── 同期管理 ─────────────────────────────────────────
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // 初期化とキュー監視
-  useEffect(() => {
-    // 初回マウント時に未送信件数を取得
-    setPendingSyncCount(OfflineQueueManager.getPendingCount());
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  通知ヘルパー
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    // イベントリスナーでキューの更新を監視
+  const showNotification = useCallback((msg: string, kind: NotificationKind = 'success') => {
+    setNotification({ msg, kind });
+    setTimeout(() => setNotification(null), kind === 'error' ? 5000 : 3000);
+  }, []);
+
+  const showSyncError = useCallback((msg: string) => showNotification(msg, 'error'), [showNotification]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  初期化（アプリ起動時に Sheets からデータ取得）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const syncOfflineData = useCallback(async () => {
+    if (!navigator.onLine || isSyncing) return;
+    const queue = OfflineQueueManager.getQueue();
+    if (queue.length === 0) return;
+
+    setIsSyncing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of queue) {
+      try {
+        let success = false;
+        if (item.type === 'TRANSACTION') {
+          success = await GoogleSheetsService.syncTransaction(item.payload);
+        } else if (item.type === 'EXPENSE') {
+          success = await GoogleSheetsService.syncExpense(item.payload);
+        }
+        if (success) {
+          OfflineQueueManager.dequeue(item.id, item.type);
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (e) {
+        console.error('Sync failed for item', item, e);
+        failCount++;
+      }
+    }
+
+    setIsSyncing(false);
+    if (successCount > 0) showNotification(`${successCount}件のオフラインデータを同期しました。`);
+    if (failCount > 0) showSyncError(`${failCount}件の同期に失敗しました。通信環境を確認してください。`);
+  }, [isSyncing, showNotification, showSyncError]);
+
+  useEffect(() => {
+    setPendingSyncCount(OfflineQueueManager.getPendingCount());
     const handleQueueUpdate = () => setPendingSyncCount(OfflineQueueManager.getPendingCount());
     window.addEventListener('offline-queue-updated', handleQueueUpdate);
     window.addEventListener('online', syncOfflineData);
 
-    // アプリ起動時のデータフェッチ (Google Sheets)
+    // ── アプリ起動時: Sheets から全データ取得 ──────────
     const initData = async () => {
       setIsSyncing(true);
       try {
-        const fetchedMembers = await GoogleSheetsService.fetchMembers();
-        const fetchedBudgets = await GoogleSheetsService.fetchBudgets();
-        
+        // 並列フェッチ（Members / Budgets / Transactions / Expenses）
+        const [fetchedMembers, fetchedBudgets, fetchedTx, fetchedEx] = await Promise.all([
+          GoogleSheetsService.fetchMembers(),
+          GoogleSheetsService.fetchBudgets(),
+          GoogleSheetsService.fetchTransactions(),
+          GoogleSheetsService.fetchExpenses(),
+        ]);
+
         if (fetchedMembers.length > 0) setMembers(fetchedMembers);
         if (fetchedBudgets.length > 0) setBudgets(fetchedBudgets);
+        // トランザクション・支出はシートが空なら初期サンプルを維持
+        if (fetchedTx.length > 0) setTransactions(fetchedTx);
+        if (fetchedEx.length > 0) setExpenses(fetchedEx);
 
-        // オフラインキューにデータがあれば同期を試みる
-        if (OfflineQueueManager.getPendingCount() > 0) {
-           await syncOfflineData();
-        }
+        if (OfflineQueueManager.getPendingCount() > 0) await syncOfflineData();
       } catch (e) {
-        console.error("Initialization failed:", e);
+        console.error('Initialization failed:', e);
+        showSyncError('起動時の初期データ取得に失敗しました。オフラインモードで動作しています。');
       } finally {
         setIsSyncing(false);
       }
@@ -67,82 +136,70 @@ function App() {
       window.removeEventListener('offline-queue-updated', handleQueueUpdate);
       window.removeEventListener('online', syncOfflineData);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // オフラインデータの同期処理
-  const syncOfflineData = useCallback(async () => {
-    if (!navigator.onLine || isSyncing) return;
-    
-    const queue = OfflineQueueManager.getQueue();
-    if (queue.length === 0) return;
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  入金ハンドラ
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    setIsSyncing(true);
-    let successCount = 0;
-
-    for (const item of queue) {
-      try {
-        let success = false;
-        if (item.type === 'TRANSACTION') {
-          success = await GoogleSheetsService.syncTransaction(item.payload);
-        } else if (item.type === 'EXPENSE') {
-          success = await GoogleSheetsService.syncExpense(item.payload);
-        }
-
-        if (success) {
-          OfflineQueueManager.dequeue(item.id, item.type);
-          successCount++;
-        }
-      } catch (e) {
-        console.error('Sync failed for item', item, e);
-        // エラー時はキューに残すため何もしない
-      }
-    }
-    
-    setIsSyncing(false);
-    if (successCount > 0) {
-      showNotification(`${successCount}件のオフラインデータを同期しました。`);
-    }
-  }, [isSyncing]); // isSyncingを依存配列に追加
-
-  const showNotification = useCallback((msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  }, []);
-
-  const handlePaymentSubmit = useCallback((data: { memberId: string; item: string; amount: number; paymentMethod: string; }) => {
+  const handlePaymentSubmit = useCallback(async (data: {
+    memberId: string; item: string; amount: number; paymentMethod: string; organization?: string
+  }) => {
+    const now = new Date();
+    const targetMember = members.find(m => m.id === data.memberId);
     const newTx: Transaction = {
       id: `T${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
+      date: now.toISOString().split('T')[0],
       memberId: data.memberId,
-      organization: members.find((m: Member) => m.id === data.memberId)?.organization === '道院' ? '道院' : 'スポ少',
+      organization: (data.organization as '道院' | 'スポ少') ||
+        (targetMember?.organization === '道院' ? '道院' : 'スポ少'),
       item: data.item,
       amount: data.amount,
       paymentMethod: data.paymentMethod,
       enteredById: 'U001',
-      timestamp: new Date().toISOString()
+      timestamp: now.toISOString(),
+      targetMonth: getCurrentMonth(), // 対象月を自動設定
+      fiscalYear: activeFiscalYear,
     };
-    setTransactions((prev: Transaction[]) => [newTx, ...prev]);
-    
-    // オフラインキューに追加（背後で同期処理を呼び出す）
-    OfflineQueueManager.enqueue('TRANSACTION', newTx);
-    syncOfflineData();
-    
-    showNotification(`${members.find((m: Member) => m.id === data.memberId)?.name} の ${data.item}（${data.amount.toLocaleString()}円）を入金登録しました。`);
-    setSelectedMember(null);
-  }, [members, syncOfflineData, showNotification]);
 
-  const handleQuickEntry = useCallback((targetMember: Member) => {
+    // 1. UI を即時反映
+    setTransactions(prev => [newTx, ...prev]);
+
+    // 2. Google Sheets へリアルタイム書き込み（オフラインキュー経由）
+    OfflineQueueManager.enqueue('TRANSACTION', newTx);
+    const synced = await GoogleSheetsService.syncTransaction(newTx);
+    if (synced) {
+      OfflineQueueManager.dequeue(newTx.id, 'TRANSACTION');
+      showNotification(`${targetMember?.name ?? data.memberId} の ${data.item}（${data.amount.toLocaleString()}円）を入金登録しました。`);
+    } else {
+      showSyncError(`Sheetsへの書き込みに失敗しました。オフラインキューに保持します。`);
+    }
+
+    // 3. Sheets から最新データを再フェッチしてUIを最新化
+    try {
+      const refreshed = await GoogleSheetsService.fetchTransactions();
+      if (refreshed.length > 0) setTransactions(refreshed);
+    } catch { /* シート未設定時はスキップ */ }
+
+    setSelectedMember(null);
+  }, [members, activeFiscalYear, showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  クイック入金ハンドラ
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handleQuickEntry = useCallback(async (targetMember: Member) => {
     const today = new Date().toISOString().split('T')[0];
-    const itemsToPay: {item: string, amount: number, org: '道院'|'スポ少'}[] = [];
-    
-    // 家族割引判定
-    const familyMembers = targetMember.representativeId 
-      ? members.filter((m: Member) => 
+    const itemsToPay: { item: string; amount: number; org: '道院' | 'スポ少' }[] = [];
+
+    const familyMembers = targetMember.representativeId
+      ? members.filter(m =>
           m.representativeId === targetMember.representativeId &&
           m.status === '現役' &&
           m.joinDate <= today &&
           (!m.leaveDate || m.leaveDate >= today)
-        ) 
+        )
       : [];
     const isFamilyDiscountEligible = familyMembers.length >= 3;
 
@@ -151,14 +208,13 @@ function App() {
       const fee = sampleFeeItems.find(f => f.name === conditionName);
       if (fee) itemsToPay.push({ item: '信徒香資（月）', amount: fee.amount, org: '道院' });
     }
-    
     if (targetMember.organization === 'スポ少' || targetMember.organization === '両方') {
       const fee = sampleFeeItems.find(f => f.name === 'スポ少会費（月）');
       if (fee) itemsToPay.push({ item: 'スポ少会費（月）', amount: fee.amount, org: 'スポ少' });
     }
-
     if (itemsToPay.length === 0) return;
 
+    const now = new Date();
     const newTxs: Transaction[] = itemsToPay.map((it, idx) => ({
       id: `TQ${Date.now()}${idx}`,
       date: today,
@@ -166,22 +222,46 @@ function App() {
       organization: it.org,
       item: it.item,
       amount: it.amount,
-      paymentMethod: '現金', // クイック時のデフォルト
+      paymentMethod: '現金',
       enteredById: 'U001',
-      timestamp: new Date().toISOString()
+      timestamp: now.toISOString(),
+      targetMonth: getCurrentMonth(),
+      fiscalYear: activeFiscalYear,
     }));
 
-    setTransactions((prev: Transaction[]) => [...newTxs, ...prev]);
-    
-    // オフラインキューに追加
-    newTxs.forEach(tx => OfflineQueueManager.enqueue('TRANSACTION', tx));
-    syncOfflineData();
+    setTransactions(prev => [...newTxs, ...prev]);
 
-    const totalAmount = itemsToPay.reduce((sum, i) => sum + i.amount, 0);
+    // 各トランザクションを並列でシートに書き込み
+    const results = await Promise.all(
+      newTxs.map(tx => {
+        OfflineQueueManager.enqueue('TRANSACTION', tx);
+        return GoogleSheetsService.syncTransaction(tx).then(ok => {
+          if (ok) OfflineQueueManager.dequeue(tx.id, 'TRANSACTION');
+          return ok;
+        });
+      })
+    );
+
+    const failedCount = results.filter(r => !r).length;
+    const totalAmount = itemsToPay.reduce((s, i) => s + i.amount, 0);
     showNotification(`${targetMember.name}の当月分会費 (${totalAmount.toLocaleString()}円) をクイック登録しました ⚡`);
-  }, [members, syncOfflineData, showNotification]);
+    if (failedCount > 0) showSyncError(`${failedCount}件がSheets書き込みに失敗しました。オフラインキューに保持します。`);
 
-  const handleExpenseSubmit = useCallback((data: { date: string; organization: Organization; category: string; description: string; amount: number; paymentMethod: string; receiptUrl?: string; }) => {
+    try {
+      const refreshed = await GoogleSheetsService.fetchTransactions();
+      if (refreshed.length > 0) setTransactions(refreshed);
+    } catch { /* スキップ */ }
+  }, [members, activeFiscalYear, showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  支出ハンドラ
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handleExpenseSubmit = useCallback(async (data: {
+    date: string; organization: Organization; category: string; description: string;
+    amount: number; paymentMethod: string; receiptUrl?: string;
+  }) => {
+    const now = new Date();
     const newEx: Expense = {
       id: `E${Date.now()}`,
       date: data.date,
@@ -192,69 +272,97 @@ function App() {
       paymentMethod: data.paymentMethod,
       receiptUrl: data.receiptUrl,
       enteredById: 'U001',
-      timestamp: new Date().toISOString()
+      timestamp: now.toISOString(),
+      fiscalYear: activeFiscalYear,
     };
-    setExpenses([newEx, ...expenses]);
-    
-    // オフラインキューに追加
-    OfflineQueueManager.enqueue('EXPENSE', newEx);
-    syncOfflineData();
+    setExpenses(prev => [newEx, ...prev]);
 
-    showNotification(`${data.category}（${data.amount.toLocaleString()}円）を支出登録しました。`);
-    setActiveTab('dashboard'); // 登録後にダッシュボードに戻る
-  }, [expenses, syncOfflineData, showNotification]);
+    OfflineQueueManager.enqueue('EXPENSE', newEx);
+    const synced = await GoogleSheetsService.syncExpense(newEx);
+    if (synced) {
+      OfflineQueueManager.dequeue(newEx.id, 'EXPENSE');
+      showNotification(`${data.category}（${data.amount.toLocaleString()}円）を支出登録しました。`);
+    } else {
+      showSyncError(`Sheetsへの書き込みに失敗しました。オフラインキューに保持します。`);
+    }
+
+    try {
+      const refreshed = await GoogleSheetsService.fetchExpenses();
+      if (refreshed.length > 0) setExpenses(refreshed);
+    } catch { /* スキップ */ }
+
+    setActiveTab('dashboard');
+  }, [activeFiscalYear, showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  取消ハンドラ（論理削除）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const handleCancelTransaction = useCallback(async (id: string) => {
-    if (window.confirm('この入金記録を取り消しますか？\n（物理削除ではなく、取消フラグが立ちます）')) {
-      try {
-        // 1. UIを即時反映（オプティミスティックUI）
-        setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: true } : t));
-        // 2. Google Sheetsを更新
-        const success = await GoogleSheetsService.cancelTransaction(id);
-        if (success) {
-          showNotification(`入金履歴（ID: ${id}）を取消しました。`);
-        } else {
-          // 失敗時はUIを元に戻す
-          setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: false } : t));
-          showNotification(`取消に失敗しました（ID: ${id}）。通信環境等を確認してください。`);
-        }
-      } catch (e) {
-        setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: false } : t));
-        console.error('Failed to cancel transaction:', e);
-        showNotification(`取消中にエラーが発生しました（ID: ${id}）。`);
-      }
+    if (!window.confirm('この入金記録を取り消しますか？\n（論理削除：集計から除外されます）')) return;
+    // オプティミスティックUI
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, isCancelled: true } : t));
+    const ok = await GoogleSheetsService.cancelTransaction(id);
+    if (ok) {
+      showNotification(`入金履歴（ID: ${id}）を取消しました。`);
+    } else {
+      // ロールバック
+      setTransactions(prev => prev.map(t => t.id === id ? { ...t, isCancelled: false } : t));
+      showSyncError(`取消に失敗しました（ID: ${id}）。通信環境を確認してください。`);
     }
-  }, [showNotification]);
+  }, [showNotification, showSyncError]);
 
   const handleCancelExpense = useCallback(async (id: string) => {
-    if (window.confirm('この支出記録を取り消しますか？\n（物理削除ではなく、取消フラグが立ちます）')) {
-      try {
-        setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: true } : e));
-        const success = await GoogleSheetsService.cancelExpense(id);
-        if (success) {
-          showNotification(`支出履歴（ID: ${id}）を取消しました。`);
-        } else {
-          setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: false } : e));
-          showNotification(`取消に失敗しました（ID: ${id}）。通信環境等を確認してください。`);
-        }
-      } catch (e) {
-        setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: false } : e));
-        console.error('Failed to cancel expense:', e);
-        showNotification(`取消中にエラーが発生しました（ID: ${id}）。`);
-      }
+    if (!window.confirm('この支出記録を取り消しますか？\n（論理削除：集計から除外されます）')) return;
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, isCancelled: true } : e));
+    const ok = await GoogleSheetsService.cancelExpense(id);
+    if (ok) {
+      showNotification(`支出履歴（ID: ${id}）を取消しました。`);
+    } else {
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, isCancelled: false } : e));
+      showSyncError(`取消に失敗しました（ID: ${id}）。通信環境を確認してください。`);
     }
-  }, [showNotification]);
+  }, [showNotification, showSyncError]);
 
-  // 組織コンテキストでメンバーをフィルタリング
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  メンバー更新ハンドラ（加入日・脱退日・ステータス）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handleMemberUpdate = useCallback(async (updated: Member) => {
+    // 1. UI 即時反映
+    setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
+    // 2. Sheets へ書き込み
+    const ok = await GoogleSheetsService.updateMember(updated);
+    if (ok) {
+      showNotification(`${updated.name} の情報を更新しました。`);
+    } else {
+      // ロールバック: 元の状態に戻す
+      showSyncError(`${updated.name} の情報更新に失敗しました。通信環境を確認してください。`);
+      // 最新を再フェッチしてロールバック
+      try {
+        const refreshed = await GoogleSheetsService.fetchMembers();
+        if (refreshed.length > 0) setMembers(refreshed);
+      } catch { /* スキップ */ }
+    }
+  }, [showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  表示用メンバー（組織コンテキストフィルタ）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   const displayMembers = useMemo(() => {
-    return activeOrgContext === '統合' 
-      ? members 
-      : members.filter((m: Member) => m.organization === activeOrgContext || m.organization === '両方');
+    return activeOrgContext === '統合'
+      ? members
+      : members.filter(m => m.organization === activeOrgContext || m.organization === '両方');
   }, [members, activeOrgContext]);
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  レンダリング
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   return (
-    <Layout 
-      activeTab={activeTab} 
+    <Layout
+      activeTab={activeTab}
       onTabChange={setActiveTab}
       activeOrgContext={activeOrgContext}
       onOrgContextChange={setActiveOrgContext}
@@ -263,22 +371,36 @@ function App() {
       pendingSyncCount={pendingSyncCount}
       isSyncing={isSyncing}
     >
+      {/* ── 通知バナー（成功 / エラー） ─────────────────── */}
       {notification && (
-        <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded shadow-sm flex items-center animate-pulse">
-          <svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path>
-          </svg>
-          <p className="text-sm text-green-700 font-medium">{notification}</p>
+        <div className={`mb-4 border-l-4 p-4 rounded shadow-sm flex items-start gap-2 ${
+          notification.kind === 'error'
+            ? 'bg-red-50 border-red-500'
+            : 'bg-green-50 border-green-500'
+        }`}>
+          {notification.kind === 'error' ? (
+            <svg className="h-5 w-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5 text-green-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          )}
+          <p className={`text-sm font-medium ${notification.kind === 'error' ? 'text-red-700' : 'text-green-700'}`}>
+            {notification.msg}
+          </p>
         </div>
       )}
 
-      {/* タブコンテンツの切り替え */}
+      {/* ── タブコンテンツ ───────────────────────────────── */}
       {activeTab === 'dashboard' && (
-        <Dashboard 
-          activeOrgContext={activeOrgContext} 
-          transactions={transactions} 
-          expenses={expenses} 
+        <Dashboard
+          activeOrgContext={activeOrgContext}
+          transactions={transactions}
+          expenses={expenses}
           budgets={budgets}
+          members={members}
           fiscalYear={activeFiscalYear}
         />
       )}
@@ -288,30 +410,36 @@ function App() {
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-800">拳士・入金管理</h2>
           </div>
-          <MembersList 
-            members={displayMembers} 
-            onSelectMember={setSelectedMember} 
+          <MembersList
+            members={displayMembers}
+            onSelectMember={setSelectedMember}
             onQuickEntry={handleQuickEntry}
+            onMemberUpdate={handleMemberUpdate}
           />
         </div>
       )}
 
       {activeTab === 'expenses' && (
-        <ExpenseForm onSubmit={handleExpenseSubmit} memberships={members} expenses={expenses} />
+        <ExpenseForm
+          onSubmit={handleExpenseSubmit}
+          memberships={members}
+          expenses={expenses}
+          fiscalYear={activeFiscalYear}
+        />
       )}
 
       {activeTab === 'reports' && (
-        <AuditReport 
-          members={members} 
-          transactions={transactions} 
-          expenses={expenses} 
+        <AuditReport
+          members={members}
+          transactions={transactions}
+          expenses={expenses}
           budgets={budgets}
           fiscalYear={activeFiscalYear}
         />
       )}
-      
+
       {activeTab === 'history' && (
-        <HistoryList 
+        <HistoryList
           transactions={transactions}
           expenses={expenses}
           fiscalYear={activeFiscalYear}
@@ -339,10 +467,10 @@ function App() {
         />
       )}
 
-      {/* モーダル */}
+      {/* ── 入金モーダル ─────────────────────────────────── */}
       {selectedMember && (
-        <PaymentForm 
-          member={selectedMember} 
+        <PaymentForm
+          member={selectedMember}
           allMembers={members}
           feeItems={sampleFeeItems}
           onClose={() => setSelectedMember(null)}

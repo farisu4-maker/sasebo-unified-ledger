@@ -37,8 +37,9 @@ export interface Transaction {
   paymentMethod: string;
   enteredById: string;
   timestamp: string;
-  isCancelled?: boolean; // 新規追加: 取消フラグ
+  isCancelled?: boolean; // 取消フラグ（論理削除）
   fiscalYear?: number;
+  targetMonth?: string; // 対象月 YYYY-MM 形式（何月分の会費か）
 }
 
 export interface Expense {

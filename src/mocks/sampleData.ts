@@ -26,11 +26,11 @@ export const sampleFeeItems: FeeItem[] = [
 ];
 
 export const sampleTransactions: Transaction[] = [
-  { id: 'T001', date: '2026-03-10', memberId: 'M001', organization: '道院', item: '信徒香資（月）', amount: 3500, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-10T14:30:00Z' },
-  { id: 'T002', date: '2026-03-10', memberId: 'M002', organization: 'スポ少', item: 'スポ少会費（月）', amount: 1000, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-10T14:35:00Z' },
-  { id: 'T003', date: '2026-03-09', memberId: 'M003', organization: '道院', item: '財団年費', amount: 4000, paymentMethod: '振込', enteredById: 'U001', timestamp: '2026-03-09T09:10:00Z' },
-  { id: 'T004', date: '2026-03-09', memberId: 'M003', organization: 'スポ少', item: 'スポ少会費（月）', amount: 1000, paymentMethod: '振込', enteredById: 'U001', timestamp: '2026-03-09T09:11:00Z' },
-  { id: 'T005', date: '2026-03-08', memberId: 'M004', organization: '道院', item: '信徒香資（月）', amount: 3500, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-08T18:20:00Z' },
+  { id: 'T001', date: '2026-03-10', memberId: 'M001', organization: '道院', item: '信徒香資（月）', amount: 3500, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-10T14:30:00Z', targetMonth: '2026-03' },
+  { id: 'T002', date: '2026-03-10', memberId: 'M002', organization: 'スポ少', item: 'スポ少会費（月）', amount: 1000, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-10T14:35:00Z', targetMonth: '2026-03' },
+  { id: 'T003', date: '2026-03-09', memberId: 'M003', organization: '道院', item: '財団年費', amount: 4000, paymentMethod: '振込', enteredById: 'U001', timestamp: '2026-03-09T09:10:00Z', targetMonth: '2026-03' },
+  { id: 'T004', date: '2026-03-09', memberId: 'M003', organization: 'スポ少', item: 'スポ少会費（月）', amount: 1000, paymentMethod: '振込', enteredById: 'U001', timestamp: '2026-03-09T09:11:00Z', targetMonth: '2026-03' },
+  { id: 'T005', date: '2026-03-08', memberId: 'M004', organization: '道院', item: '信徒香資（月）', amount: 3500, paymentMethod: '現金', enteredById: 'U001', timestamp: '2026-03-08T18:20:00Z', targetMonth: '2026-03' },
 ];
 
 export const sampleExpenses: Expense[] = [
