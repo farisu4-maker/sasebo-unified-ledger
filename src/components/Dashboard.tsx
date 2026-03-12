@@ -10,16 +10,6 @@ interface DashboardProps {
   fiscalYear: number;
 }
 
-/** birthDate (YYYY-MM-DD) から本日時点の満年齢を計算 */
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  const mDiff = today.getMonth() - birth.getMonth();
-  if (mDiff < 0 || (mDiff === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
-
 /** YYYY-MM を「YYYY年M月分」に変換 */
 function fmtTargetMonth(ym: string | undefined): string {
   if (!ym) return '';
