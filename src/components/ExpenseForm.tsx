@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Organization, Expense } from '../types';
+import { Expense } from '../types';
 import { parseJapaneseDate } from '../utils/dateParser';
 
 interface ExpenseFormProps {
