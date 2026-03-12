@@ -65,13 +65,15 @@ export const Settings: React.FC<SettingsProps> = ({
 
       for (const org of orgs) {
         // Calculate initial balance
-        const initialBalance = budgets.filter((b: Budget) => (b.organization === org || b.organization === '両方') && b.year === fiscalYear)
-                                      .reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0);
+        const initialBalance = budgets
+          .filter((b: Budget) => b.organization === org && b.year === fiscalYear)
+          .reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0);
         
         // Calculate income & expense
         const income = currentTransactions.filter((t: Transaction) => t.organization === org).reduce((sum: number, t: Transaction) => sum + t.amount, 0);
-        const expense = currentExpenses.filter((e: Expense) => e.organization === org || e.organization === '両方')
-                                       .reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0);
+        const expense = currentExpenses
+          .filter((e: Expense) => e.organization === org)
+          .reduce((sum: number, e: Expense) => sum + e.amount, 0);
         
         const computedFinalBalance = initialBalance + income - expense;
 
@@ -198,18 +200,18 @@ export const Settings: React.FC<SettingsProps> = ({
               <div className="bg-white p-3 rounded border border-orange-100">
                 <div className="text-xs text-gray-500 mb-1">道院 次期繰越予定額</div>
                 <div className="font-mono text-lg font-semibold">
-                  {((budgets.filter((b: Budget) => (b.organization === '道院' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) + 
-                   (transactions.filter((t: Transaction) => t.organization === '道院' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) - 
-                   (expenses.filter((e: Expense) => (e.organization === '道院' || e.organization === '両方') && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0))
+                  {((budgets.filter((b: Budget) => b.organization === '道院' && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) +
+                   (transactions.filter((t: Transaction) => t.organization === '道院' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) -
+                   (expenses.filter((e: Expense) => e.organization === '道院' && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + e.amount, 0))
                   ).toLocaleString()} 円
                 </div>
               </div>
               <div className="bg-white p-3 rounded border border-orange-100">
                 <div className="text-xs text-gray-500 mb-1">スポ少 次期繰越予定額</div>
                 <div className="font-mono text-lg font-semibold">
-                  {((budgets.filter((b: Budget) => (b.organization === 'スポ少' || b.organization === '両方') && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) + 
-                   (transactions.filter((t: Transaction) => t.organization === 'スポ少' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) - 
-                   (expenses.filter((e: Expense) => (e.organization === 'スポ少' || e.organization === '両方') && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + (e.organization === '両方' ? e.amount / 2 : e.amount), 0))
+                  {((budgets.filter((b: Budget) => b.organization === 'スポ少' && b.year === fiscalYear).reduce((sum: number, b: Budget) => sum + (b.initialBalance || 0), 0)) +
+                   (transactions.filter((t: Transaction) => t.organization === 'スポ少' && t.date >= `${fiscalYear}-04-01` && t.date <= `${fiscalYear + 1}-03-31` && !t.isCancelled).reduce((sum: number, t: Transaction) => sum + t.amount, 0)) -
+                   (expenses.filter((e: Expense) => e.organization === 'スポ少' && e.date >= `${fiscalYear}-04-01` && e.date <= `${fiscalYear + 1}-03-31` && !e.isCancelled).reduce((sum: number, e: Expense) => sum + e.amount, 0))
                   ).toLocaleString()} 円
                 </div>
               </div>

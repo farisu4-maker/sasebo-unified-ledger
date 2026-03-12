@@ -258,7 +258,7 @@ function App() {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const handleExpenseSubmit = useCallback(async (data: {
-    date: string; organization: Organization; category: string; description: string;
+    date: string; organization: '道院' | 'スポ少'; category: string; description: string;
     amount: number; paymentMethod: string; receiptUrl?: string;
   }) => {
     const now = new Date();
