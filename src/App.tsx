@@ -7,7 +7,7 @@ import { ExpenseForm } from './components/ExpenseForm';
 import { AuditReport } from './components/AuditReport';
 import { HistoryList } from './components/HistoryList';
 import { Settings } from './components/Settings';
-import { sampleMembers as initialMembers, sampleFeeItems, sampleTransactions, sampleExpenses, sampleBudgets as initialBudgets } from './mocks/sampleData';
+import { sampleFeeItems } from './mocks/sampleData';
 import { Member, Organization, Transaction, Expense, Budget } from './types';
 import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
@@ -37,10 +37,10 @@ function App() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   // ── アプリの全データを管理するステート ─────────────────
-  const [members, setMembers] = useState<Member[]>(initialMembers);
-  const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-  const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
-  const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   // ── 通知バナー（成功 / エラー）─────────────────────────
   const [notification, setNotification] = useState<AppNotification | null>(null);

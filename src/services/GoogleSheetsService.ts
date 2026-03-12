@@ -23,12 +23,12 @@ export class GoogleSheetsService {
   //  M_Members
   //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日,
   //  F: 所属区分, G: 代表者ID, H: 状態, I: 脱退日,
-  //  J: 免除フラグ, K: 備考
+  //  J: 免除フラグ, K: 備考, L: ヨミガナ
   // ============================================================
 
   static async fetchMembers(): Promise<Member[]> {
     try {
-      const res = await this.fetchApi('M_Members!A2:K');
+      const res = await this.fetchApi('M_Members!A2:L');
       const data = await res.json();
       if (!data.values) return [];
 
@@ -43,7 +43,8 @@ export class GoogleSheetsService {
         status: (row[7] as '現役' | '休眠' | '退会') || '現役',
         leaveDate: row[8] || undefined,
         exemptionFlag: row[9] === 'TRUE' || row[9] === 'true',
-        notes: row[10] || ''
+        notes: row[10] || '',
+        yomigana: row[11] || undefined,
       }));
     } catch (e) {
       console.error('Failed to fetch M_Members', e);
@@ -57,18 +58,16 @@ export class GoogleSheetsService {
    */
   static async updateMember(member: Member): Promise<boolean> {
     try {
-      // A列でID検索（ヘッダー込み）
       const res = await this.fetchApi('M_Members!A:A');
       const data = await res.json();
       if (!data.values) return false;
 
-      // row[0] = ヘッダー "ID", row[1] 以降がデータ → シート行番号 = index + 1
       const rowIndex = data.values.findIndex((row: string[]) => row[0] === member.id);
       if (rowIndex === -1) {
         console.error(`Member ID ${member.id} not found in M_Members`);
         return false;
       }
-      const sheetRow = rowIndex + 1; // 1-indexed
+      const sheetRow = rowIndex + 1;
 
       const values = [[
         member.id,
@@ -81,11 +80,12 @@ export class GoogleSheetsService {
         member.status,
         member.leaveDate || '',
         member.exemptionFlag ? 'TRUE' : 'FALSE',
-        member.notes || ''
+        member.notes || '',
+        member.yomigana || '',  // L列：ヨミガナ
       ]];
 
       const updateRes = await this.batchUpdateValues([{
-        range: `M_Members!A${sheetRow}:K${sheetRow}`,
+        range: `M_Members!A${sheetRow}:L${sheetRow}`,
         values
       }]);
 

@@ -24,7 +24,13 @@ function calcAge(birthDate: string): number {
  */
 function calcStatus(member: Member): { label: string; color: string } {
   if (member.leaveDate && member.leaveDate.trim() !== '') {
-    return { label: '退会', color: 'bg-gray-200 text-gray-600' };
+    // 今日以前の日付のみ「退会」（未来日付・当日は「現役」または「退会予定」表示）
+    const today = new Date().toISOString().split('T')[0];
+    if (member.leaveDate <= today) {
+      return { label: '退会', color: 'bg-gray-200 text-gray-600' };
+    }
+    // 未来日付は現役扱い
+    return { label: '現役', color: 'bg-green-100 text-green-800' };
   }
   return { label: '現役', color: 'bg-green-100 text-green-800' };
 }
@@ -88,14 +94,18 @@ export const MembersList: React.FC<MembersListProps> = ({
                   }`}
                 >
                   {/* ID */}
-                  <td className="px-4 py-3 border-x text-gray-500 text-xs">{member.id}</td>
+                  <td className="px-4 py-3 border-x text-gray-900 text-base font-medium">{member.id}</td>
 
                   {/* 氏名 + 年齢 */}
-                  <td className="px-4 py-3 border-x font-semibold text-gray-800">
-                    <div className={!isActive ? 'text-gray-400' : ''}>{member.name}</div>
-                    <span className="block text-xs font-normal text-gray-400">{member.kana}</span>
+                  <td className="px-4 py-3 border-x">
+                    <div className={`font-bold text-base ${!isActive ? 'text-gray-400' : 'text-gray-900'}`}>{member.name}</div>
+                    {(member.yomigana || member.kana) && (
+                      <span className="block text-xs font-normal text-gray-400 tracking-wider">
+                        {member.yomigana || member.kana}
+                      </span>
+                    )}
                     {age !== null && (
-                      <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-indigo-600 font-medium">
+                      <span className="mt-0.5 inline-flex items-center gap-0.5 text-sm text-indigo-600 font-medium">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>

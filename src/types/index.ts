@@ -3,7 +3,8 @@ export type Organization = '道院' | 'スポ少' | '両方';
 export interface Member {
   id: string;
   name: string;
-  kana: string;
+  kana: string;       // カタカナ氏名（旧フィールド、後方互換）
+  yomigana?: string;  // スプレッドシート L列 から取得するヨミガナ
   birthDate: string; // YYYY-MM-DD
   joinDate: string;  // YYYY-MM-DD
   leaveDate?: string; // YYYY-MM-DD (null/undefined if active)
@@ -45,15 +46,15 @@ export interface Transaction {
 export interface Expense {
   id: string;
   date: string;
-  organization: '道院' | 'スポ少' | '両方';
+  organization: '道院' | 'スポ少'; // 「両方」廃止 → 必ずどちらかに帰属
   category: string;
   description: string;
   amount: number;
   paymentMethod: string;
-  receiptUrl?: string; // ブラウザ版では一旦Base64などのURL
+  receiptUrl?: string;
   enteredById: string;
   timestamp: string;
-  isCancelled?: boolean; // 新規追加: 取消フラグ
+  isCancelled?: boolean;
   fiscalYear?: number;
 }
 
