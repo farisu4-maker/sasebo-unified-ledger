@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Member, FeeItem } from '../types/index';
+import { Member, FeeItem, Transaction } from '../types/index';
 import { calculateFoundationFeeForMember } from '../utils/feeCalculator';
 
 interface PaymentFormProps {
