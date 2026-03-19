@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Member, Transaction, Expense, Budget } from '../types';
 import { GoogleSheetsService } from '../services/GoogleSheetsService';
 
@@ -16,7 +16,9 @@ export const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [closeMessage, setCloseMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
     const data = {
@@ -40,6 +42,45 @@ export const Settings: React.FC<SettingsProps> = ({
     
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        if (!json.members || !json.transactions || !json.expenses || !json.budgets) {
+          alert('不正なバックアップファイルです。');
+          return;
+        }
+
+        if (!window.confirm('警告: バックアップから復元すると、現在のGoogleスプレッドシートの全データが上書きされます。\n本当に実行しますか？')) {
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+        }
+
+        setIsUploading(true);
+        setCloseMessage(null);
+        
+        const success = await GoogleSheetsService.restoreData(json);
+        if (success) {
+          setCloseMessage('データの復元が完了しました。ページをリロードして最新のデータを取得してください。');
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          setCloseMessage('データの復元に失敗しました。');
+        }
+      } catch (err) {
+        console.error(err);
+        setCloseMessage('バックアップファイルの読み込みに失敗しました。');
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleYearEndClose = async () => {
@@ -174,12 +215,29 @@ export const Settings: React.FC<SettingsProps> = ({
             現在のシステムに登録されているすべてのデータ（拳士情報、入出金履歴、予算設定など）をJSONファイルとしてダウンロードします。<br />
             定期的なバックアップを推奨します。
           </p>
-          <button 
-            onClick={handleExport}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm flex items-center"
-          >
-            全データをエクスポート (JSON)
-          </button>
+          <div className="flex flex-wrap gap-4">
+            <button 
+              onClick={handleExport}
+              disabled={isUploading}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm flex items-center"
+            >
+              全データをエクスポート (JSON)
+            </button>
+            <input
+              type="file"
+              accept=".json"
+              ref={fileInputRef}
+              onChange={handleImport}
+              className="hidden"
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="bg-white border border-indigo-600 text-indigo-600 hover:bg-indigo-50 font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm flex items-center"
+            >
+              {isUploading ? '復元中...' : 'バックアップから復元'}
+            </button>
+          </div>
         </section>
 
         <section className="pt-6 border-t border-gray-100">

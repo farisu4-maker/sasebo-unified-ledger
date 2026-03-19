@@ -19,6 +19,22 @@ export class GoogleSheetsService {
     });
   }
 
+  /**
+   * 日付文字列を YYYY-MM-DD 形式に標準化する
+   * Google Sheets から 'YYYY/M/D' 等で返ってくる場合を考慮
+   */
+  private static standardizeDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const parts = dateStr.replace(/\//g, '-').split('-');
+    if (parts.length === 3) {
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return dateStr;
+  }
+
   // ============================================================
   //  M_Members
   //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日,
@@ -142,7 +158,7 @@ export class GoogleSheetsService {
       return data.values.map((row: string[]) => ({
         id: row[0],
         timestamp: row[1],
-        date: row[2],
+        date: this.standardizeDate(row[2]),
         organization: row[3] as '道院' | 'スポ少',
         memberId: row[4],
         item: row[5],
@@ -222,7 +238,7 @@ export class GoogleSheetsService {
       return data.values.map((row: string[]) => ({
         id: row[0],
         timestamp: row[1],
-        date: row[2],
+        date: this.standardizeDate(row[2]),
         organization: row[3] as '道院' | 'スポ少' | '両方',
         category: row[4],
         description: row[5],
@@ -449,5 +465,66 @@ export class GoogleSheetsService {
     });
     if (!res.ok) throw new Error(await res.text());
     return res;
+  }
+
+  /**
+   * JSONバックアップからデータを復元（既存データを全消去して上書き）
+   */
+  static async restoreData(data: { members: Member[], budgets: Budget[], transactions: Transaction[], expenses: Expense[] }): Promise<boolean> {
+    try {
+      if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
+      const token = await getValidToken();
+
+      // 1. Clear existing data (keeping headers)
+      const batchClearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchClear`;
+      await fetch(batchClearUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ranges: [
+            'M_Members!A2:Z',
+            'M_Budgets!A2:Z',
+            'T_Transactions!A2:Z',
+            'T_Expenses!A2:Z'
+          ]
+        })
+      });
+
+      // 2. Prepare data for batchUpdate
+      const membersData = data.members.map(m => [
+          m.id, m.name, m.kana, m.birthDate, m.joinDate, m.organization,
+          m.representativeId || '', m.status, m.leaveDate || '', m.exemptionFlag ? 'TRUE' : 'FALSE',
+          m.notes || '', m.yomigana || '', m.role || ''
+      ]);
+      const budgetsData = data.budgets.map(b => [
+          b.organization, b.category, b.amount, b.initialBalance || 0, b.finalBalance !== undefined ? b.finalBalance : '', b.year
+      ]);
+      const txData = data.transactions.map(t => [
+          t.id, t.timestamp, t.date, t.organization, t.memberId, t.item, t.amount, t.paymentMethod, t.enteredById,
+          t.isCancelled ? 'TRUE' : 'FALSE', t.fiscalYear || new Date().getFullYear(), t.targetMonth || ''
+      ]);
+      const expData = data.expenses.map(e => [
+          e.id, e.timestamp, e.date, e.organization, e.category, e.description || '', e.amount, e.paymentMethod, e.receiptUrl || '', e.enteredById,
+          e.isCancelled ? 'TRUE' : 'FALSE', e.fiscalYear || new Date().getFullYear()
+      ]);
+
+      const updates: { range: string, values: any[][] }[] = [];
+      if (membersData.length > 0) updates.push({ range: 'M_Members!A2', values: membersData });
+      if (budgetsData.length > 0) updates.push({ range: 'M_Budgets!A2', values: budgetsData });
+      if (txData.length > 0) updates.push({ range: 'T_Transactions!A2', values: txData });
+      if (expData.length > 0) updates.push({ range: 'T_Expenses!A2', values: expData });
+
+      // 3. Batch Update
+      if (updates.length > 0) {
+        await this.batchUpdateValues(updates);
+      }
+      return true;
+    } catch (e) {
+      console.error('Failed to restore data', e);
+      return false;
+    }
   }
 }

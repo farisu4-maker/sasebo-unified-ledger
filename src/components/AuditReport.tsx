@@ -21,9 +21,14 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   fiscalYear
 }) => {
   const [reportTab, setReportTab] = useState<ReportTab>('report');
+  const [printMode, setPrintMode] = useState<'all' | 'doin' | 'spo'>('all');
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   const handlePrint = () => {
-    window.print();
+    setShowPrintModal(false);
+    setTimeout(() => {
+      window.print();
+    }, 100);
   };
 
   const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
@@ -191,6 +196,16 @@ export const AuditReport: React.FC<AuditReportProps> = ({
 
   return (
     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 printable-area">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .printable-area, .printable-area * { visibility: visible; }
+          .printable-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none; }
+          .no-print { display: none !important; }
+          @page { size: A4 landscape; margin: 10mm; }
+        }
+      `}</style>
+
       {/* ── タブ切り替え ───────────────────────────── */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 no-print">
         <button
@@ -217,35 +232,117 @@ export const AuditReport: React.FC<AuditReportProps> = ({
 
       {/* ── 月別納入チェック表タブ ──────────────────── */}
       {reportTab === 'matrix' && (
-        <div>
-          <h3 className="text-lg font-bold text-gray-800 mb-4">
-            令和{fiscalYear - 2018}年度 月別納入チェック表
-          </h3>
-          <PaymentStatusMatrix
-            members={members}
-            transactions={transactions}
-            fiscalYear={fiscalYear}
-          />
+        <div className="space-y-16">
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">
+                令和{fiscalYear - 2018}年度 月別納入チェック表
+              </h3>
+              <button
+                onClick={() => setShowPrintModal(true)}
+                className="no-print bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded shadow-sm text-sm flex items-center"
+              >
+                印刷 (PDF)
+              </button>
+            </div>
+            
+            <div className={`print-content ${printMode === 'spo' ? 'hidden print:hidden' : ''}`}>
+               <PaymentStatusMatrix
+                 members={members}
+                 transactions={transactions}
+                 fiscalYear={fiscalYear}
+               />
+            </div>
+          </div>
+
+          {/* 個人別年間納入明細表 */}
+          <section className="break-before-page">
+            <div className="text-center mb-6">
+              <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
+                令和{(fiscalYear - 2018)}年度 個人別年間納入明細表
+              </h1>
+            </div>
+            <p className="no-print text-xs text-gray-500 mb-2">
+              ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の各行に表示。金額はT_Transactionsの実績値。
+            </p>
+            <table className="min-w-full text-center text-[11px] border border-gray-600">
+              <thead className="bg-gray-100 border-b border-gray-600 font-bold">
+                <tr>
+                  <th className="border-r border-gray-600 py-1 px-2 w-32 text-left">氏名</th>
+                  <th className="border-r border-gray-600 py-1 px-1 w-12 text-xs">所属</th>
+                  {months.map(m => (
+                    <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
+                  ))}
+                  <th className="py-1 px-2 font-bold w-16">合計</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowData
+                  .filter(row => printMode === 'all' || (printMode === 'doin' && row.org === '道院') || (printMode === 'spo' && row.org === 'スポ少'))
+                  .map((row, idx, filteredArr) => {
+                  const isFirstOfBoth = row.isBoth && (idx === 0 || filteredArr[idx - 1].memberId !== row.memberId);
+                  
+                  const nameCellContent = isFirstOfBoth && printMode === 'all' ? (
+                    <td
+                      rowSpan={2}
+                      className="border border-gray-600 py-0.5 px-2 text-left font-medium align-middle"
+                    >
+                      {row.name}
+                      <span className="block text-[9px] font-normal text-purple-600">両方</span>
+                    </td>
+                  ) : (!row.isBoth || printMode !== 'all') ? (
+                    <td className="border border-gray-600 py-0.5 px-2 text-left font-medium">
+                      {row.name}
+                    </td>
+                  ) : null;
+
+                  return (
+                    <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {nameCellContent}
+                      <td className={`border border-gray-600 py-0.5 px-1 text-[10px] font-normal ${
+                        row.org === '道院' ? 'text-blue-600' : 'text-emerald-600'
+                      }`}>{row.org}</td>
+                      {row.monthAmounts.map((amt, mi) => (
+                        <td key={mi} className={`border border-gray-600 py-0.5 px-1 ${
+                          amt > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'
+                        }`}>
+                          {amt > 0 ? `¥${amt.toLocaleString()}` : '―'}
+                        </td>
+                      ))}
+                      <td className="border border-gray-600 py-0.5 px-2 font-bold text-xs">
+                        {row.total > 0 ? `¥${row.total.toLocaleString()}` : '―'}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* 月別縦計行 */}
+                <tr className="bg-gray-200 font-bold border-t-2 border-gray-600 text-xs">
+                  <td className="border border-gray-600 py-1.5 px-2 text-left" colSpan={printMode === 'all' ? 2 : 2}>各月 合計</td>
+                  {monthTotals.map((total, mi) => (
+                    <td key={mi} className="border border-gray-600 py-1.5 px-1 text-gray-900">
+                      {total > 0 ? `¥${total.toLocaleString()}` : '―'}
+                    </td>
+                  ))}
+                  <td className="border border-gray-600 py-1.5 px-1 text-gray-900 text-sm">
+                    {grandTotal > 0 ? `¥${grandTotal.toLocaleString()}` : '―'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            {rowData.length === 0 && (
+              <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間の在籍拳士データがありません。</p>
+            )}
+          </section>
         </div>
       )}
 
       {/* ── 収支報告書タブ ───────────────────────── */}
       {reportTab === 'report' && (
         <div className="space-y-16">
-          <style>{`
-            @media print {
-              body * { visibility: hidden; }
-              .printable-area, .printable-area * { visibility: visible; }
-              .printable-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none; }
-              .no-print { display: none !important; }
-              @page { size: A4 landscape; margin: 10mm; }
-            }
-          `}</style>
-
-          <div className="flex justify-between items-center no-print">
+          <div className="flex justify-between items-center no-print pb-4">
             <h2 className="text-2xl font-bold text-gray-800">監査用レポート</h2>
             <button
-              onClick={handlePrint}
+              onClick={() => setShowPrintModal(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center"
             >
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,30 +396,34 @@ export const AuditReport: React.FC<AuditReportProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-8">
                 {/* 道院 */}
-                <div>
-                  <h3 className="font-bold bg-blue-100 text-blue-900 p-2 text-center border border-blue-200">少林寺拳法佐世保道院</h3>
-                  <table className="w-full text-sm border-collapse border border-gray-400 mt-2">
-                    <tbody>
-                      <tr><th className="border border-gray-400 p-1 bg-blue-50 w-1/2 text-left">前年度繰越金 (A)</th><td className="border border-gray-400 p-1 text-right font-bold">¥{prevBalanceDoin.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度入金合計 (B)</th><td className="border border-gray-400 p-1 text-right">¥{incomeDoin.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度支出合計 (C)</th><td className="border border-gray-400 p-1 text-right">¥{expenseDoin.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-blue-100 text-left font-bold border-t-2">次年度繰越金 (A+B-C)</th><td className="border border-gray-400 p-1 text-right font-bold border-t-2 text-lg text-blue-900">¥{(prevBalanceDoin + incomeDoin - expenseDoin).toLocaleString()}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
+                {(printMode === 'all' || printMode === 'doin') && (
+                  <div className={printMode === 'doin' ? 'col-span-2' : ''}>
+                    <h3 className="font-bold bg-blue-100 text-blue-900 p-2 text-center border border-blue-200">少林寺拳法佐世保道院</h3>
+                    <table className="w-full text-sm border-collapse border border-gray-400 mt-2">
+                      <tbody>
+                        <tr><th className="border border-gray-400 p-1 bg-blue-50 w-1/2 text-left">前年度繰越金 (A)</th><td className="border border-gray-400 p-1 text-right font-bold">¥{prevBalanceDoin.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度入金合計 (B)</th><td className="border border-gray-400 p-1 text-right">¥{incomeDoin.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度支出合計 (C)</th><td className="border border-gray-400 p-1 text-right">¥{expenseDoin.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-blue-100 text-left font-bold border-t-2">次年度繰越金 (A+B-C)</th><td className="border border-gray-400 p-1 text-right font-bold border-t-2 text-lg text-blue-900">¥{(prevBalanceDoin + incomeDoin - expenseDoin).toLocaleString()}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {/* スポ少 */}
-                <div>
-                  <h3 className="font-bold bg-emerald-100 text-emerald-900 p-2 text-center border border-emerald-200">佐世保西スポーツ少年団</h3>
-                  <table className="w-full text-sm border-collapse border border-gray-400 mt-2">
-                    <tbody>
-                      <tr><th className="border border-gray-400 p-1 bg-emerald-50 w-1/2 text-left">前年度繰越金 (A)</th><td className="border border-gray-400 p-1 text-right font-bold">¥{prevBalanceSpo.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度入金合計 (B)</th><td className="border border-gray-400 p-1 text-right">¥{incomeSpo.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度支出合計 (C)</th><td className="border border-gray-400 p-1 text-right">¥{expenseSpo.toLocaleString()}</td></tr>
-                      <tr><th className="border border-gray-400 p-1 bg-emerald-100 text-left font-bold border-t-2">次年度繰越金 (A+B-C)</th><td className="border border-gray-400 p-1 text-right font-bold border-t-2 text-lg text-emerald-900">¥{(prevBalanceSpo + incomeSpo - expenseSpo).toLocaleString()}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
+                {(printMode === 'all' || printMode === 'spo') && (
+                  <div className={printMode === 'spo' ? 'col-span-2' : ''}>
+                    <h3 className="font-bold bg-emerald-100 text-emerald-900 p-2 text-center border border-emerald-200">佐世保西スポーツ少年団</h3>
+                    <table className="w-full text-sm border-collapse border border-gray-400 mt-2">
+                      <tbody>
+                        <tr><th className="border border-gray-400 p-1 bg-emerald-50 w-1/2 text-left">前年度繰越金 (A)</th><td className="border border-gray-400 p-1 text-right font-bold">¥{prevBalanceSpo.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度入金合計 (B)</th><td className="border border-gray-400 p-1 text-right">¥{incomeSpo.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-gray-50 text-left">本年度支出合計 (C)</th><td className="border border-gray-400 p-1 text-right">¥{expenseSpo.toLocaleString()}</td></tr>
+                        <tr><th className="border border-gray-400 p-1 bg-emerald-100 text-left font-bold border-t-2">次年度繰越金 (A+B-C)</th><td className="border border-gray-400 p-1 text-right font-bold border-t-2 text-lg text-emerald-900">¥{(prevBalanceSpo + incomeSpo - expenseSpo).toLocaleString()}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div className="mt-16 flex justify-end space-x-16 pr-8">
@@ -336,81 +437,71 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                 </div>
               </div>
             </section>
+          </div>
+        </div>
+      )}
 
-            {/* 個人別年間納入明細表 */}
-            <section className="break-before-page">
-              <div className="text-center mb-6">
-                <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
-                  令和{(fiscalYear - 2018)}年度 個人別年間納入明細表
-                </h1>
-              </div>
-              <p className="text-xs text-gray-500 mb-2">
-                ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の各行に表示。金額はT_Transactionsの実績値。
-              </p>
-              <table className="min-w-full text-center text-xs border border-gray-600">
-                <thead className="bg-gray-100 border-b border-gray-600 font-bold">
-                  <tr>
-                    <th className="border-r border-gray-600 py-1 px-2 w-36 text-left">氏名</th>
-                    <th className="border-r border-gray-600 py-1 px-2 w-12">所属</th>
-                    {months.map(m => (
-                      <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
-                    ))}
-                    <th className="py-1 px-2 font-bold">合計</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rowData.map((row, idx) => {
-                    const nameCellContent = row.isBoth && row.isFirstRow ? (
-                      <td
-                        rowSpan={2}
-                        className="border border-gray-600 py-1 px-2 text-left font-medium align-middle"
-                      >
-                        {row.name}
-                        <span className="block text-[10px] font-normal text-purple-600">両方</span>
-                      </td>
-                    ) : !row.isBoth ? (
-                      <td className="border border-gray-600 py-1 px-2 text-left font-medium">
-                        {row.name}
-                      </td>
-                    ) : null;
-
-                    return (
-                      <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        {nameCellContent}
-                        <td className={`border border-gray-600 py-1 px-2 text-[10px] font-normal ${
-                          row.org === '道院' ? 'text-blue-600' : 'text-emerald-600'
-                        }`}>{row.org}</td>
-                        {row.monthAmounts.map((amt, mi) => (
-                          <td key={mi} className={`border border-gray-600 py-1 px-1 ${
-                            amt > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'
-                          }`}>
-                            {amt > 0 ? `¥${amt.toLocaleString()}` : '―'}
-                          </td>
-                        ))}
-                        <td className="border border-gray-600 py-1 px-2 font-bold">
-                          {row.total > 0 ? `¥${row.total.toLocaleString()}` : '―'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {/* 月別縦計行 */}
-                  <tr className="bg-gray-200 font-bold border-t-2 border-gray-600">
-                    <td className="border border-gray-600 py-1 px-2 text-left" colSpan={2}>各月 合計</td>
-                    {monthTotals.map((total, mi) => (
-                      <td key={mi} className="border border-gray-600 py-1 px-1 text-gray-900">
-                        {total > 0 ? `¥${total.toLocaleString()}` : '―'}
-                      </td>
-                    ))}
-                    <td className="border border-gray-600 py-1 px-1 text-gray-900">
-                      {grandTotal > 0 ? `¥${grandTotal.toLocaleString()}` : '―'}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              {rowData.length === 0 && (
-                <p className="text-sm text-gray-500 mt-4 text-center">対象期間の在籍拳士データがありません。</p>
-              )}
-            </section>
+      {/* ── 印刷プレビュー用モーダル ────────────────── */}
+      {showPrintModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
+            <h3 className="text-xl font-bold mb-4">印刷設定</h3>
+            <p className="text-gray-600 mb-4 text-sm">
+              印刷する対象の組織を選択してください。A4横向きでの印刷を推奨します。
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="printMode" 
+                  value="all" 
+                  checked={printMode === 'all'} 
+                  onChange={() => setPrintMode('all')}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
+                />
+                <span className="font-medium">統合版（道院・スポ少両方）</span>
+              </label>
+              
+              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="printMode" 
+                  value="doin" 
+                  checked={printMode === 'doin'} 
+                  onChange={() => setPrintMode('doin')}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
+                />
+                <span className="font-medium text-blue-700">道院のみ</span>
+              </label>
+              
+              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="printMode" 
+                  value="spo" 
+                  checked={printMode === 'spo'} 
+                  onChange={() => setPrintMode('spo')}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
+                />
+                <span className="font-medium text-emerald-700">スポ少のみ</span>
+              </label>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowPrintModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md font-medium text-sm transition-colors"
+              >
+                キャンセル
+              </button>
+              <button 
+                onClick={handlePrint}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium text-sm shadow-sm transition-colors"
+              >
+                印刷プレビューへ進む
+              </button>
+            </div>
           </div>
         </div>
       )}

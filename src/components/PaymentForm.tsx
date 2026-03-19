@@ -6,11 +6,12 @@ interface PaymentFormProps {
   member: Member;
   allMembers: Member[];
   feeItems: FeeItem[];
+  transactions: Transaction[];
   onClose: () => void;
   onSubmit: (data: { memberId: string; item: string; amount: number; paymentMethod: string; organization?: string }) => void;
 }
 
-export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, onClose, onSubmit }) => {
+export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, transactions, onClose, onSubmit }) => {
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [selectedOrg] = useState<string>(
     member.organization === '両方' ? '道院' : member.organization
@@ -42,8 +43,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
       if (fee) setAmount(fee.amount);
       setSuggestedFeeMessage('');
     } else if (selectedItem === '信徒香資（月）') {
-      // 家族割引の判定
-      if (isFamilyDiscountEligible) {
+      if (member.role) {
+        setAmount(1500);
+        setSuggestedFeeMessage('✨ 役職者特典: 1,500円');
+      } else if (member.organization === '両方') {
+        setAmount(2500);
+        setSuggestedFeeMessage('✨ 両方所属割引: 2,500円');
+      } else if (isFamilyDiscountEligible) {
         const discountItem = feeItems.find((item: FeeItem) => item.name === '信徒香資（月・家族割引）');
         if (discountItem) {
           setAmount(discountItem.amount);
@@ -58,9 +64,14 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
         setSuggestedFeeMessage('');
       }
     } else if (selectedItem === 'スポ少会費（月）') {
-      const fee = feeItems.find((item: FeeItem) => item.name === selectedItem);
-      if (fee) setAmount(fee.amount);
-      setSuggestedFeeMessage('');
+      if (member.organization === '両方') {
+        setAmount(1000);
+        setSuggestedFeeMessage('✨ 両方所属割引: 1,000円');
+      } else {
+        const fee = feeItems.find((item: FeeItem) => item.name === selectedItem);
+        if (fee) setAmount(fee.amount);
+        setSuggestedFeeMessage('');
+      }
     } else {
       setAmount(0);
       setSuggestedFeeMessage('');
@@ -72,6 +83,26 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem || amount <= 0) return;
+    
+    // 過納・重複チェックロジック
+    if (selectedItem === '信徒香資（月）' || selectedItem === 'スポ少会費（月）') {
+      const d = new Date();
+      const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      
+      const targetAmount = 
+        selectedItem === '信徒香資（月）' 
+          ? (member.role ? 1500 : (member.organization === '両方' ? 2500 : feeItems.find(f => f.name === '信徒香資（月）')?.amount || 3000))
+          : (member.organization === '両方' ? 1000 : feeItems.find(f => f.name === 'スポ少会費（月）')?.amount || 1500);
+          
+      const pastTotal = transactions
+        .filter(t => !t.isCancelled && t.memberId === member.id && t.item === selectedItem && t.targetMonth === targetMonth)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      if (pastTotal + amount > targetAmount) {
+        alert(`${targetMonth}月の調定額（${targetAmount}円）を超過しています。\n既に${pastTotal}円が納入済みです。重複入力または過納になっていないか確認してください。`);
+        return;
+      }
+    }
     
     const targetOrg = member.organization === '両方' && submitTargetRef.current 
       ? submitTargetRef.current 
@@ -133,8 +164,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                 <option value="" disabled>費目を選択してください</option>
                 <option value="財団年費">財団年費</option>
                 <option value="宗教年費">宗教年費</option>
-                {['道院', '両方'].includes(member.organization) && <option value="信徒香資（月）">信徒香資（月）</option>}
-                {['スポ少', '両方'].includes(member.organization) && <option value="スポ少会費（月）">スポ少会費（月）</option>}
+                <option value="信徒香資（月）">信徒香資（月）</option>
+                <option value="スポ少会費（月）">スポ少会費（月）</option>
                 <optgroup label="── 過年度分回収 ──">
                   <option value="前年度未納分回収（道院）">前年度未納分回収（道院）</option>
                   <option value="前年度未納分回収（スポ少）">前年度未納分回収（スポ少）</option>

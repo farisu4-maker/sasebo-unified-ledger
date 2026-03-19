@@ -147,7 +147,7 @@ function App() {
     memberId: string; item: string; amount: number; paymentMethod: string; organization?: string
   }) => {
     const now = new Date();
-    const targetMember = members.find(m => m.id === data.memberId);
+    const targetMember = members.find((m: Member) => m.id === data.memberId);
     const newTx: Transaction = {
       id: `T${Date.now()}`,
       date: now.toISOString().split('T')[0],
@@ -164,7 +164,7 @@ function App() {
     };
 
     // 1. UI を即時反映
-    setTransactions(prev => [newTx, ...prev]);
+    setTransactions((prev: Transaction[]) => [newTx, ...prev]);
 
     // 2. Google Sheets へリアルタイム書き込み（オフラインキュー経由）
     OfflineQueueManager.enqueue('TRANSACTION', newTx);
@@ -207,7 +207,7 @@ function App() {
       timestamp: now.toISOString(),
       fiscalYear: activeFiscalYear,
     };
-    setExpenses(prev => [newEx, ...prev]);
+    setExpenses((prev: Expense[]) => [newEx, ...prev]);
 
     OfflineQueueManager.enqueue('EXPENSE', newEx);
     const synced = await GoogleSheetsService.syncExpense(newEx);
@@ -233,25 +233,25 @@ function App() {
   const handleCancelTransaction = useCallback(async (id: string) => {
     if (!window.confirm('この入金記録を取り消しますか？\n（論理削除：集計から除外されます）')) return;
     // オプティミスティックUI
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, isCancelled: true } : t));
+    setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: true } : t));
     const ok = await GoogleSheetsService.cancelTransaction(id);
     if (ok) {
       showNotification(`入金履歴（ID: ${id}）を取消しました。`);
     } else {
       // ロールバック
-      setTransactions(prev => prev.map(t => t.id === id ? { ...t, isCancelled: false } : t));
+      setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === id ? { ...t, isCancelled: false } : t));
       showSyncError(`取消に失敗しました（ID: ${id}）。通信環境を確認してください。`);
     }
   }, [showNotification, showSyncError]);
 
   const handleCancelExpense = useCallback(async (id: string) => {
     if (!window.confirm('この支出記録を取り消しますか？\n（論理削除：集計から除外されます）')) return;
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, isCancelled: true } : e));
+    setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: true } : e));
     const ok = await GoogleSheetsService.cancelExpense(id);
     if (ok) {
       showNotification(`支出履歴（ID: ${id}）を取消しました。`);
     } else {
-      setExpenses(prev => prev.map(e => e.id === id ? { ...e, isCancelled: false } : e));
+      setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === id ? { ...e, isCancelled: false } : e));
       showSyncError(`取消に失敗しました（ID: ${id}）。通信環境を確認してください。`);
     }
   }, [showNotification, showSyncError]);
@@ -262,7 +262,7 @@ function App() {
 
   const handleMemberUpdate = useCallback(async (updated: Member) => {
     // 1. UI 即時反映
-    setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
+    setMembers((prev: Member[]) => prev.map((m: Member) => m.id === updated.id ? updated : m));
     // 2. Sheets へ書き込み
     const ok = await GoogleSheetsService.updateMember(updated);
     if (ok) {
@@ -285,7 +285,7 @@ function App() {
   const displayMembers = useMemo(() => {
     return activeOrgContext === '統合'
       ? members
-      : members.filter(m => m.organization === activeOrgContext || m.organization === '両方');
+      : members.filter((m: Member) => m.organization === activeOrgContext || m.organization === '両方');
   }, [members, activeOrgContext]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -405,6 +405,7 @@ function App() {
           member={selectedMember}
           allMembers={members}
           feeItems={sampleFeeItems}
+          transactions={transactions}
           onClose={() => setSelectedMember(null)}
           onSubmit={handlePaymentSubmit}
         />
