@@ -20,11 +20,14 @@ export class GoogleSheetsService {
   }
 
   /**
-   * 数値文字列をパースする（カンマや円マーク等を除去）
+   * 数値文字列をパースする（カンマや円マーク等を除去、全角対応）
    */
   private static parseNumber(val: string | undefined | null): number {
     if (!val) return 0;
-    const numStr = val.toString().replace(/[¥,]/g, '').trim();
+    let numStr = val.toString();
+    // 全角数字を半角に変換
+    numStr = numStr.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+    numStr = numStr.replace(/[¥,，、]/g, '').trim();
     const parsed = parseInt(numStr, 10);
     return isNaN(parsed) ? 0 : parsed;
   }
@@ -36,10 +39,14 @@ export class GoogleSheetsService {
    */
   private static standardizeDate(dateStr: string | undefined, fallbackYear?: number): string {
     if (!dateStr) return '';
-    const trimmed = dateStr.trim();
+    let trimmed = dateStr.trim();
+    
+    // 全角英数字を半角に変換
+    trimmed = trimmed.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+    trimmed = trimmed.replace(/　/g, ' ').trim();
     
     // 和暦変換 R: 令和, H: 平成, S: 昭和
-    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{1,2})$/i);
+    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})\s*[\.\/]\s*(\d{1,2})\s*[\.\/]\s*(\d{1,2})$/i);
     if (eraMatch) {
       const era = eraMatch[1].toUpperCase();
       let year = parseInt(eraMatch[2], 10);
@@ -61,7 +68,7 @@ export class GoogleSheetsService {
     }
 
     // M月D日 または M/D（年が省略されているケース）、オプションで時刻 (HH:mm または HH:mm:ss)
-    const monthDayMatch = trimmed.match(/^(\d{1,2})[月\/](\d{1,2})日?(?:\s+(\d{1,2}:\d{1,2}(?::\d{1,2})?))?$/);
+    const monthDayMatch = trimmed.match(/^(\d{1,2})\s*[月\/]\s*(\d{1,2})\s*日?(?:\s+(\d{1,2}:\d{1,2}(?::\d{1,2})?))?$/);
     if (monthDayMatch) {
       const y = fallbackYear || new Date().getFullYear();
       const m = monthDayMatch[1].padStart(2, '0');
@@ -78,10 +85,13 @@ export class GoogleSheetsService {
    */
   private static formatTargetMonth(monthStr: string | undefined): string | undefined {
     if (!monthStr || monthStr.trim() === '') return undefined;
-    const trimmed = monthStr.trim();
+    let trimmed = monthStr.trim();
+    
+    trimmed = trimmed.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+    trimmed = trimmed.replace(/　/g, ' ').trim();
     
     // 和暦変換 例: R7.4, H30/12
-    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})[\.\/](\d{1,2})/i);
+    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})\s*[\.\/]\s*(\d{1,2})/i);
     if (eraMatch) {
       const era = eraMatch[1].toUpperCase();
       let year = parseInt(eraMatch[2], 10);

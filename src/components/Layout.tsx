@@ -66,8 +66,8 @@ export const Layout: React.FC<LayoutProps> = ({
       <div className={`md:hidden text-white shadow-md ${getThemeColor()} transition-colors duration-300 z-20 sticky top-0`}>
         <div className="px-4 py-3 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">少林寺拳法 佐世保道院・佐世保西スポーツ少年団 統合台帳</h1>
-            <p className="text-xs opacity-80">{activeOrgContext}モード</p>
+            <h1 className="text-base font-bold tracking-tight opacity-95">少林寺拳法 佐世保道院・佐世保西スポーツ少年団 統合台帳</h1>
+            <p className="text-[10px] opacity-80 mt-0.5">{activeOrgContext}モード</p>
           </div>
           <div className="flex items-center space-x-3">
             {/* Sync Indicator Mobile */}
@@ -99,8 +99,8 @@ export const Layout: React.FC<LayoutProps> = ({
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
         md:relative md:translate-x-0
       `}>
-        <div className={`px-6 py-5 text-white ${getThemeColor()} transition-colors duration-300 hidden md:flex justify-between items-start`}>
-          <h1 className="text-xl font-bold tracking-tight">少林寺拳法 佐世保道院<br/>佐世保西スポーツ少年団<br/>統合台帳</h1>
+        <div className={`px-5 py-4 text-white ${getThemeColor()} transition-colors duration-300 hidden md:flex justify-between items-start`}>
+          <h1 className="text-base font-bold tracking-tight leading-snug opacity-95">少林寺拳法 佐世保道院<br/>佐世保西スポーツ少年団<br/>統合台帳</h1>
           
           {/* Sync Indicator Desktop */}
           <div className="mt-1" title={isSyncing ? '同期中...' : pendingSyncCount > 0 ? `${pendingSyncCount}件の未送信データ` : '同期完了'}>
