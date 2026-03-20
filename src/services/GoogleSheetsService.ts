@@ -70,9 +70,16 @@ export class GoogleSheetsService {
     // M月D日 または M/D（年が省略されているケース）、オプションで時刻 (HH:mm または HH:mm:ss)
     const monthDayMatch = trimmed.match(/^(\d{1,2})\s*[月\/]\s*(\d{1,2})\s*日?(?:\s+(\d{1,2}:\d{1,2}(?::\d{1,2})?))?$/);
     if (monthDayMatch) {
-      const y = fallbackYear || new Date().getFullYear();
-      const m = monthDayMatch[1].padStart(2, '0');
+      let y = fallbackYear || new Date().getFullYear();
+      const mNum = parseInt(monthDayMatch[1], 10);
+      const m = String(mNum).padStart(2, '0');
       const d = monthDayMatch[2].padStart(2, '0');
+      
+      // 年度（4月始まり）の補正: 1〜3月はカレンダー年では翌年となる
+      if (mNum >= 1 && mNum <= 3 && fallbackYear) {
+        y += 1;
+      }
+      
       const time = monthDayMatch[3] ? ` ${monthDayMatch[3]}` : '';
       return `${y}-${m}-${d}${time}`;
     }
