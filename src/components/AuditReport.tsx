@@ -22,13 +22,9 @@ export const AuditReport: React.FC<AuditReportProps> = ({
 }) => {
   const [reportTab, setReportTab] = useState<ReportTab>('report');
   const [printMode, setPrintMode] = useState<'all' | 'doin' | 'spo'>('all');
-  const [showPrintModal, setShowPrintModal] = useState(false);
 
   const handlePrint = () => {
-    setShowPrintModal(false);
-    setTimeout(() => {
-      window.print();
-    }, 100);
+    window.print();
   };
 
   const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
@@ -206,28 +202,56 @@ export const AuditReport: React.FC<AuditReportProps> = ({
         }
       `}</style>
 
-      {/* ── タブ切り替え ───────────────────────────── */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 no-print">
-        <button
-          onClick={() => setReportTab('report')}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-            reportTab === 'report'
-              ? 'border-indigo-600 text-indigo-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          📊 収支報告書
-        </button>
-        <button
-          onClick={() => setReportTab('matrix')}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-            reportTab === 'matrix'
-              ? 'border-indigo-600 text-indigo-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          ✅ 月別納入チェック表
-        </button>
+      {/* ── コントロールパネル（タブ・表示対象切替・印刷） ───────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-gray-200 mb-6 no-print gap-4 pb-2">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setReportTab('report')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              reportTab === 'report'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            📊 収支報告書
+          </button>
+          <button
+            onClick={() => setReportTab('matrix')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              reportTab === 'matrix'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ✅ 月別納入チェック表
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-1">
+          <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-md border border-gray-200">
+            <span className="text-sm font-bold text-gray-700">表示対象:</span>
+            <select
+              value={printMode}
+              onChange={(e) => setPrintMode(e.target.value as 'all' | 'doin' | 'spo')}
+              className="bg-transparent border-none text-sm font-medium text-gray-900 focus:ring-0 py-0 pl-1 pr-6 cursor-pointer"
+            >
+              <option value="all">統合版 (道院・スポ少両方)</option>
+              <option value="doin">佐世保道院 のみ</option>
+              <option value="spo">スポ少 のみ</option>
+            </select>
+          </div>
+          
+          <button
+            onClick={handlePrint}
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center justify-center"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            PDFで印刷・保存
+          </button>
+        </div>
       </div>
 
       {/* ── 月別納入チェック表タブ ──────────────────── */}
@@ -238,12 +262,6 @@ export const AuditReport: React.FC<AuditReportProps> = ({
               <h3 className="text-lg font-bold text-gray-800">
                 令和{fiscalYear - 2018}年度 月別納入チェック表
               </h3>
-              <button
-                onClick={() => setShowPrintModal(true)}
-                className="no-print bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded shadow-sm text-sm flex items-center"
-              >
-                印刷 (PDF)
-              </button>
             </div>
             
             <div className={`print-content ${printMode === 'spo' ? 'hidden print:hidden' : ''}`}>
@@ -341,18 +359,8 @@ export const AuditReport: React.FC<AuditReportProps> = ({
       {/* ── 収支報告書タブ ───────────────────────── */}
       {reportTab === 'report' && (
         <div className="space-y-16">
-          <div className="flex justify-between items-center no-print pb-4">
+          <div className="no-print pb-4">
             <h2 className="text-2xl font-bold text-gray-800">監査用レポート</h2>
-            <button
-              onClick={() => setShowPrintModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              PDFで印刷・保存
-            </button>
           </div>
 
           <div className="print-content space-y-16">
@@ -489,70 +497,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
         </div>
       )}
 
-      {/* ── 印刷プレビュー用モーダル ────────────────── */}
-      {showPrintModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
-            <h3 className="text-xl font-bold mb-4">印刷設定</h3>
-            <p className="text-gray-600 mb-4 text-sm">
-              印刷する対象の組織を選択してください。A4横向きでの印刷を推奨します。
-            </p>
-            
-            <div className="space-y-3 mb-6">
-              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="printMode" 
-                  value="all" 
-                  checked={printMode === 'all'} 
-                  onChange={() => setPrintMode('all')}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
-                />
-                <span className="font-medium">統合版（道院・スポ少両方）</span>
-              </label>
-              
-              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="printMode" 
-                  value="doin" 
-                  checked={printMode === 'doin'} 
-                  onChange={() => setPrintMode('doin')}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
-                />
-                <span className="font-medium text-blue-700">道院のみ</span>
-              </label>
-              
-              <label className="flex items-center space-x-3 p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="printMode" 
-                  value="spo" 
-                  checked={printMode === 'spo'} 
-                  onChange={() => setPrintMode('spo')}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500" 
-                />
-                <span className="font-medium text-emerald-700">スポ少のみ</span>
-              </label>
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button 
-                onClick={() => setShowPrintModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md font-medium text-sm transition-colors"
-              >
-                キャンセル
-              </button>
-              <button 
-                onClick={handlePrint}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium text-sm shadow-sm transition-colors"
-              >
-                印刷プレビューへ進む
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };
