@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Member, Transaction } from '../types';
 import { sortMembers } from '../utils/memberSort';
 
@@ -24,7 +24,7 @@ function isFeeItem(item: string): boolean {
   return FEE_KEYWORDS.some(kw => item.includes(kw));
 }
 
-type OrgTab = '道院' | 'スポ少';
+
 
 export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
   members,

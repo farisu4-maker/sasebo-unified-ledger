@@ -187,8 +187,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   });
 
   // 月別縦計（各月の全メンバー合計）
-  const monthTotals = months.map((_, mi) => rowData.reduce((s, row) => s + row.monthAmounts[mi], 0));
-  const grandTotal = rowData.reduce((s, row) => s + row.total, 0);
+  // (現在は組織ごとに計算するため、共通の月別集計は廃止)
 
   return (
     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 printable-area">
@@ -291,7 +290,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
           </div>
 
           {/* 個人別年間納入明細表 */}
-          {(['道院', 'スポ少'] as const).map((org, orgIdx) => {
+          {(['道院', 'スポ少'] as const).map((org) => {
             if (printMode !== 'all' && printMode !== (org === '道院' ? 'doin' : 'spo')) return null;
             const filteredRows = rowData.filter(row => row.org === org);
             const totals = months.map((_, mi) => filteredRows.reduce((s, r) => s + r.monthAmounts[mi], 0));
@@ -458,7 +457,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             </section>
 
             {/* 支出一覧（明細） */}
-            {(['道院', 'スポ少'] as const).map((org, orgIdx) => {
+            {(['道院', 'スポ少'] as const).map((org) => {
               if (printMode !== 'all' && printMode !== (org === '道院' ? 'doin' : 'spo')) return null;
               const orgExpenses = currentExpenses.filter(ex => ex.organization === org).sort((a, b) => a.date.localeCompare(b.date));
               
