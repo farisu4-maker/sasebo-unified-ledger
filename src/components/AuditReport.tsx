@@ -264,95 +264,104 @@ export const AuditReport: React.FC<AuditReportProps> = ({
               </h3>
             </div>
             
-            <div className={`print-content ${printMode === 'spo' ? 'hidden print:hidden' : ''}`}>
-               <PaymentStatusMatrix
-                 members={members}
-                 transactions={transactions}
-                 fiscalYear={fiscalYear}
-               />
+            <div className="print-content space-y-12">
+              {(printMode === 'all' || printMode === 'doin') && (
+                <div>
+                  <h4 className="text-md font-bold text-gray-800 mb-2 border-l-4 border-blue-600 pl-2">月別納入チェック表（少林寺拳法佐世保道院）</h4>
+                  <PaymentStatusMatrix
+                    members={members}
+                    transactions={transactions}
+                    fiscalYear={fiscalYear}
+                    org="道院"
+                  />
+                </div>
+              )}
+              {(printMode === 'all' || printMode === 'spo') && (
+                <div className={printMode === 'all' ? 'print:break-before-page break-before-page' : ''}>
+                  <h4 className="text-md font-bold text-gray-800 mb-2 border-l-4 border-emerald-600 pl-2">月別納入チェック表（佐世保西スポーツ少年団）</h4>
+                  <PaymentStatusMatrix
+                    members={members}
+                    transactions={transactions}
+                    fiscalYear={fiscalYear}
+                    org="スポ少"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {/* 個人別年間納入明細表 */}
-          <section className="break-before-page">
-            <div className="text-center mb-6">
-              <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
-                令和{(fiscalYear - 2018)}年度 個人別年間納入明細表
-              </h1>
-            </div>
-            <p className="no-print text-xs text-gray-500 mb-2">
-              ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の各行に表示。金額はT_Transactionsの実績値。
-            </p>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-center text-[11px] md:text-xs border border-gray-600">
-              <thead className="bg-gray-100 border-b border-gray-600 font-bold">
-                <tr>
-                  <th className="border-r border-gray-600 py-1 px-2 w-32 text-left">氏名</th>
-                  <th className="border-r border-gray-600 py-1 px-1 w-12 text-xs">所属</th>
-                  {months.map(m => (
-                    <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
-                  ))}
-                  <th className="py-1 px-2 font-bold w-16">合計</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rowData
-                  .filter(row => printMode === 'all' || (printMode === 'doin' && row.org === '道院') || (printMode === 'spo' && row.org === 'スポ少'))
-                  .map((row, idx, filteredArr) => {
-                  const isFirstOfBoth = row.isBoth && (idx === 0 || filteredArr[idx - 1].memberId !== row.memberId);
-                  
-                  const nameCellContent = isFirstOfBoth && printMode === 'all' ? (
-                    <td
-                      rowSpan={2}
-                      className="border border-gray-600 py-0.5 px-2 text-left font-medium align-middle"
-                    >
-                      {row.name}
-                      <span className="block text-[9px] font-normal text-purple-600">両方</span>
-                    </td>
-                  ) : (!row.isBoth || printMode !== 'all') ? (
-                    <td className="border border-gray-600 py-0.5 px-2 text-left font-medium">
-                      {row.name}
-                    </td>
-                  ) : null;
+          {(['道院', 'スポ少'] as const).map((org, orgIdx) => {
+            if (printMode !== 'all' && printMode !== (org === '道院' ? 'doin' : 'spo')) return null;
+            const filteredRows = rowData.filter(row => row.org === org);
+            const totals = months.map((_, mi) => filteredRows.reduce((s, r) => s + r.monthAmounts[mi], 0));
+            const gTotal = filteredRows.reduce((s, r) => s + r.total, 0);
 
-                  return (
-                    <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      {nameCellContent}
-                      <td className={`border border-gray-600 py-0.5 px-1 text-[10px] font-normal ${
-                        row.org === '道院' ? 'text-blue-600' : 'text-emerald-600'
-                      }`}>{row.org}</td>
-                      {row.monthAmounts.map((amt, mi) => (
-                        <td key={mi} className={`border border-gray-600 py-0.5 px-1 ${
-                          amt > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'
-                        }`}>
-                          {amt > 0 ? `¥${amt.toLocaleString()}` : '―'}
-                        </td>
+            return (
+              <section key={org} className={`pt-8 print:pt-0 ${printMode === 'all' || org === '道院' ? 'print:break-before-page break-before-page' : ''} ${org === 'スポ少' && printMode === 'all' ? 'print:break-before-page break-before-page mt-12 print:mt-0' : ''}`}>
+                <div className="text-center mb-6">
+                  <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
+                    令和{(fiscalYear - 2018)}年度 個人別年間納入明細表（{org === '道院' ? '少林寺拳法佐世保道院' : '佐世保西スポーツ少年団'}）
+                  </h1>
+                </div>
+                <p className="no-print text-xs text-gray-500 mb-2">
+                  ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の両方に表示。
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-center text-[11px] md:text-xs border border-gray-600">
+                    <thead className="bg-gray-100 border-b border-gray-600 font-bold">
+                      <tr>
+                        <th className="border-r border-gray-600 py-1 px-2 w-32 text-left">氏名</th>
+                        <th className="border-r border-gray-600 py-1 px-1 w-12 text-xs">所属</th>
+                        {months.map(m => (
+                          <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
+                        ))}
+                        <th className="py-1 px-2 font-bold w-16">合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row, idx) => (
+                        <tr key={row.key} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} print:break-inside-avoid`}>
+                          <td className="border border-gray-600 py-0.5 px-2 text-left font-medium">
+                            {row.name}
+                            {row.isBoth && <span className="ml-1 inline-block text-[9px] font-normal text-purple-600">兼</span>}
+                          </td>
+                          <td className={`border border-gray-600 py-0.5 px-1 text-[10px] font-normal ${
+                            row.org === '道院' ? 'text-blue-600' : 'text-emerald-600'
+                          }`}>{row.org}</td>
+                          {row.monthAmounts.map((amt, mi) => (
+                            <td key={mi} className={`border border-gray-600 py-0.5 px-1 ${
+                              amt > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'
+                            }`}>
+                              {amt > 0 ? `¥${amt.toLocaleString()}` : '―'}
+                            </td>
+                          ))}
+                          <td className="border border-gray-600 py-0.5 px-2 font-bold text-xs">
+                            {row.total > 0 ? `¥${row.total.toLocaleString()}` : '―'}
+                          </td>
+                        </tr>
                       ))}
-                      <td className="border border-gray-600 py-0.5 px-2 font-bold text-xs">
-                        {row.total > 0 ? `¥${row.total.toLocaleString()}` : '―'}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {/* 月別縦計行 */}
-                <tr className="bg-gray-200 font-bold border-t-2 border-gray-600 text-xs">
-                  <td className="border border-gray-600 py-1.5 px-2 text-left" colSpan={printMode === 'all' ? 2 : 2}>各月 合計</td>
-                  {monthTotals.map((total, mi) => (
-                    <td key={mi} className="border border-gray-600 py-1.5 px-1 text-gray-900">
-                      {total > 0 ? `¥${total.toLocaleString()}` : '―'}
-                    </td>
-                  ))}
-                  <td className="border border-gray-600 py-1.5 px-1 text-gray-900 text-sm">
-                    {grandTotal > 0 ? `¥${grandTotal.toLocaleString()}` : '―'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            </div>
-            {rowData.length === 0 && (
-              <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間の在籍拳士データがありません。</p>
-            )}
-          </section>
+                      {/* 月別縦計行 */}
+                      <tr className="bg-gray-200 font-bold border-t-2 border-gray-600 text-xs print:break-inside-avoid">
+                        <td className="border border-gray-600 py-1.5 px-2 text-left" colSpan={2}>各月 合計</td>
+                        {totals.map((total, mi) => (
+                          <td key={mi} className="border border-gray-600 py-1.5 px-1 text-gray-900">
+                            {total > 0 ? `¥${total.toLocaleString()}` : '―'}
+                          </td>
+                        ))}
+                        <td className="border border-gray-600 py-1.5 px-1 text-gray-900 text-sm">
+                          {gTotal > 0 ? `¥${gTotal.toLocaleString()}` : '―'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {filteredRows.length === 0 && (
+                  <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間のデータがありません。</p>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -449,50 +458,47 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             </section>
 
             {/* 支出一覧（明細） */}
-            <section className="print:break-before-page break-before-page pt-8 print:pt-0">
-              <div className="text-center mb-6">
-                <h1 className="text-lg md:text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">令和{(fiscalYear - 2018)}年度 支出明細表</h1>
-              </div>
-              <p className="no-print text-xs text-gray-500 mb-2">
-                ※該当年度・組織に紐づく支出データを一覧表示しています。印刷時の証憑監査用としても利用可能です。
-              </p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-[11px] md:text-xs border-collapse border border-gray-600">
-                  <thead className="bg-gray-100 border-b border-gray-600 font-bold">
-                    <tr>
-                      <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">日付</th>
-                      {printMode === 'all' && <th className="border-r border-gray-600 py-1.5 px-2">組織</th>}
-                      <th className="border-r border-gray-600 py-1.5 px-2">勘定科目</th>
-                      <th className="border-r border-gray-600 py-1.5 px-2">摘要</th>
-                      <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">支払方法</th>
-                      <th className="border-r border-gray-600 py-1.5 px-2 text-right whitespace-nowrap">金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentExpenses
-                      .filter(ex => printMode === 'all' || (printMode === 'doin' && ex.organization === '道院') || (printMode === 'spo' && ex.organization === 'スポ少'))
-                      .sort((a, b) => a.date.localeCompare(b.date))
-                      .map((ex, idx) => (
-                      <tr key={ex.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.date}</td>
-                        {printMode === 'all' && (
-                          <td className={`border border-gray-600 py-1 px-2 whitespace-nowrap font-medium ${ex.organization === '道院' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                            {ex.organization}
-                          </td>
-                        )}
-                        <td className="border border-gray-600 py-1 px-2">{ex.category}</td>
-                        <td className="border border-gray-600 py-1 px-2">{ex.description}</td>
-                        <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.paymentMethod}</td>
-                        <td className="border border-gray-600 py-1 px-2 text-right font-medium">¥{ex.amount.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {currentExpenses.filter(ex => printMode === 'all' || (printMode === 'doin' && ex.organization === '道院') || (printMode === 'spo' && ex.organization === 'スポ少')).length === 0 && (
-                  <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間・組織の支出データがありません。</p>
-                )}
-              </div>
-            </section>
+            {(['道院', 'スポ少'] as const).map((org, orgIdx) => {
+              if (printMode !== 'all' && printMode !== (org === '道院' ? 'doin' : 'spo')) return null;
+              const orgExpenses = currentExpenses.filter(ex => ex.organization === org).sort((a, b) => a.date.localeCompare(b.date));
+              
+              return (
+                <section key={org} className={`pt-8 print:pt-0 ${printMode === 'all' || org === '道院' ? 'print:break-before-page break-before-page' : ''} ${org === 'スポ少' && printMode === 'all' ? 'print:break-before-page break-before-page mt-12 print:mt-0' : ''}`}>
+                  <div className="text-center mb-6">
+                    <h1 className="text-lg md:text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
+                      令和{(fiscalYear - 2018)}年度 支出明細表（{org === '道院' ? '少林寺拳法佐世保道院' : '佐世保西スポーツ少年団'}）
+                    </h1>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-[11px] md:text-xs border-collapse border border-gray-600">
+                      <thead className="bg-gray-100 border-b border-gray-600 font-bold">
+                        <tr>
+                          <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">日付</th>
+                          <th className="border-r border-gray-600 py-1.5 px-2">勘定科目</th>
+                          <th className="border-r border-gray-600 py-1.5 px-2">摘要</th>
+                          <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">支払方法</th>
+                          <th className="border-r border-gray-600 py-1.5 px-2 text-right whitespace-nowrap">金額</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orgExpenses.map((ex, idx) => (
+                          <tr key={ex.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} print:break-inside-avoid`}>
+                            <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.date}</td>
+                            <td className="border border-gray-600 py-1 px-2">{ex.category}</td>
+                            <td className="border border-gray-600 py-1 px-2">{ex.description}</td>
+                            <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.paymentMethod}</td>
+                            <td className="border border-gray-600 py-1 px-2 text-right font-medium">¥{ex.amount.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {orgExpenses.length === 0 && (
+                      <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間・組織の支出データがありません。</p>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </div>
       )}

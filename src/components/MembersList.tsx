@@ -93,23 +93,48 @@ export const MembersList: React.FC<MembersListProps> = ({
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">拳士一覧</h2>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm whitespace-nowrap">
-          <thead className="uppercase tracking-wider border-b-2 font-medium text-gray-600 bg-gray-50">
-            <tr>
-              <th scope="col" className="px-4 py-3 border-x">ID</th>
-              <th scope="col" className="px-4 py-3 border-x">氏名 / 年齢</th>
-              <th scope="col" className="px-4 py-3 border-x">役職</th>
-              <th scope="col" className="px-4 py-3 border-x">所属</th>
-              <th scope="col" className="px-4 py-3 border-x">加入日 / 脱退日</th>
-              <th scope="col" className="px-4 py-3 border-x">ステータス</th>
-              <th scope="col" className="px-4 py-3 border-x">備考</th>
-              <th scope="col" className="px-4 py-3 border-x">アクション</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((member) => {
+      <div className="flex justify-between items-center mb-4 no-print">
+        <h2 className="text-xl font-bold text-gray-800">拳士一覧</h2>
+        <button
+          onClick={() => window.print()}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center justify-center"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          PDFで印刷・保存
+        </button>
+      </div>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .printable-members, .printable-members * { visibility: visible; }
+          .printable-members { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none; box-shadow: none; }
+          .no-print { display: none !important; }
+          @page { size: A4 landscape; margin: 10mm; }
+        }
+      `}</style>
+      <div className="printable-members space-y-12">
+        {(['道院', 'スポ少'] as const).map((org, orgIdx) => (
+          <div key={org} className={orgIdx > 0 ? "print:break-before-page break-before-page" : ""}>
+            <h3 className="text-lg font-bold text-gray-800 mb-3 border-b-2 border-gray-300 pb-1 inline-block">拳士一覧（{org === '道院' ? '少林寺拳法佐世保道院' : '佐世保西スポーツ少年団'}）</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-xs md:text-sm whitespace-nowrap bg-white border border-gray-300">
+                <thead className="uppercase tracking-wider border-b-2 font-medium text-gray-600 bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">ID</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">氏名 / 年齢</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">役職</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">所属</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">加入日 / 脱退日</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">ステータス</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">備考</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300 no-print">アクション</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.filter(m => m.organization === org || m.organization === '両方').map((member) => {
               const age = member.birthDate ? calcAge(member.birthDate) : null;
               const status = calcStatus(member);
               const isEditing = editingId === member.id;
@@ -118,15 +143,15 @@ export const MembersList: React.FC<MembersListProps> = ({
               return (
                 <tr
                   key={member.id}
-                  className={`border-b transition-colors ${
+                  className={`border-b transition-colors print:break-inside-avoid ${
                     isActive ? 'hover:bg-indigo-50' : 'bg-gray-50 opacity-80 hover:bg-gray-100'
                   }`}
                 >
                   {/* ID */}
-                  <td className="px-4 py-3 border-x text-gray-900 text-base font-medium">{member.id}</td>
+                  <td className="px-3 py-2 border border-gray-300 text-gray-900 font-medium">{member.id}</td>
 
                   {/* 氏名 + ヨミガナ + 年齢 */}
-                  <td className="px-4 py-3 border-x">
+                  <td className="px-3 py-2 border border-gray-300">
                     <div className={`font-bold text-base ${!isActive ? 'text-gray-400' : 'text-gray-900'}`}>{member.name}</div>
                     {(member.yomigana || member.kana) && (
                       <span className="block text-xs font-normal text-gray-400 tracking-wider">
@@ -144,7 +169,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* 役職 */}
-                  <td className="px-4 py-3 border-x text-sm">
+                  <td className="px-3 py-2 border border-gray-300 text-xs">
                     {member.role ? (
                       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
                         {member.role}
@@ -155,7 +180,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* 所属（編集時はドロップダウン） */}
-                  <td className="px-4 py-3 border-x">
+                  <td className="px-3 py-2 border border-gray-300">
                     {isEditing ? (
                       <select
                         value={editOrg}
@@ -180,7 +205,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* 加入日 / 脱退日（インライン編集） */}
-                  <td className="px-4 py-3 border-x text-xs">
+                  <td className="px-3 py-2 border border-gray-300 text-xs">
                     {isEditing ? (
                       <div className="space-y-1">
                         {dateError && (
@@ -214,7 +239,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* ステータス */}
-                  <td className="px-4 py-3 border-x">
+                  <td className="px-3 py-2 border border-gray-300">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${status.color}`}>
                       {status.label}
                     </span>
@@ -224,12 +249,12 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* 備考 */}
-                  <td className="px-4 py-3 border-x text-xs text-gray-500 max-w-xs truncate" title={member.notes}>
+                  <td className="px-3 py-2 border border-gray-300 text-xs text-gray-500 max-w-xs truncate" title={member.notes}>
                     {member.notes}
                   </td>
 
                   {/* アクション */}
-                  <td className="px-4 py-3 border-x">
+                  <td className="px-3 py-2 border border-gray-300 no-print">
                     {isEditing ? (
                       <div className="flex gap-1 flex-wrap">
                         <button
@@ -271,8 +296,11 @@ export const MembersList: React.FC<MembersListProps> = ({
                 </tr>
               );
             })}
-          </tbody>
-        </table>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

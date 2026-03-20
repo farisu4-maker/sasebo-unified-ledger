@@ -6,6 +6,7 @@ interface PaymentStatusMatrixProps {
   members: Member[];
   transactions: Transaction[];
   fiscalYear: number;
+  org: '道院' | 'スポ少';
 }
 
 /** 月別 YYYY-MM 文字列を生成（4月始まり） */
@@ -29,8 +30,9 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
   members,
   transactions,
   fiscalYear,
+  org
 }) => {
-  const [activeOrg, setActiveOrg] = useState<OrgTab>('道院');
+  const activeOrg = org;
 
   const fyStart = `${fiscalYear}-04-01`;
   const fyEnd   = `${fiscalYear + 1}-03-31`;
@@ -70,24 +72,7 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* タブ切り替え */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
-        {(['道院', 'スポ少'] as OrgTab[]).map(org => (
-          <button
-            key={org}
-            onClick={() => setActiveOrg(org)}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-              activeOrg === org
-                ? org === '道院'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {org === '道院' ? '🏛 道院' : '⚽ スポ少'}
-          </button>
-        ))}
-      </div>
+
 
       <div className="text-xs text-gray-500 mb-1">
         ※ 費目「{orgLabel}」および「前年度未納分回収」が対象。
@@ -123,7 +108,7 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
             ) : targetMembers.map((member, idx) => (
               <tr
                 key={member.id}
-                className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                className={`border-b border-gray-100 print:break-inside-avoid ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
               >
                 {/* 氏名列 */}
                 <td className="py-2 px-3 border-r border-gray-200 sticky left-0 bg-inherit z-10">
