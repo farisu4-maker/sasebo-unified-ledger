@@ -20,19 +20,86 @@ export class GoogleSheetsService {
   }
 
   /**
-   * 日付文字列を YYYY-MM-DD 形式に標準化する
-   * Google Sheets から 'YYYY/M/D' 等で返ってくる場合を考慮
+   * 数値文字列をパースする（カンマや円マーク等を除去）
    */
-  private static standardizeDate(dateStr: string): string {
+  private static parseNumber(val: string | undefined | null): number {
+    if (!val) return 0;
+    const numStr = val.toString().replace(/[¥,]/g, '').trim();
+    const parsed = parseInt(numStr, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
+  /**
+   * 日付文字列を YYYY-MM-DD 形式に標準化する
+   * Google Sheets から 'YYYY/M/D' 等で返ってくる場合や和暦(R7.4.20)を考慮
+   * 年が省略されている場合（例: '6月25日'）は fallbackYear を補完する
+   */
+  private static standardizeDate(dateStr: string | undefined, fallbackYear?: number): string {
     if (!dateStr) return '';
-    const parts = dateStr.replace(/\//g, '-').split('-');
-    if (parts.length === 3) {
+    const trimmed = dateStr.trim();
+    
+    // 和暦変換 R: 令和, H: 平成, S: 昭和
+    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{1,2})$/i);
+    if (eraMatch) {
+      const era = eraMatch[1].toUpperCase();
+      let year = parseInt(eraMatch[2], 10);
+      const m = eraMatch[3].padStart(2, '0');
+      const d = eraMatch[4].padStart(2, '0');
+      if (era === 'R') year += 2018;
+      else if (era === 'H') year += 1988;
+      else if (era === 'S') year += 1925;
+      return `${year}-${m}-${d}`;
+    }
+
+    // YYYY/M/D または YYYY-M-D
+    const parts = trimmed.replace(/\//g, '-').split('-');
+    if (parts.length >= 3) {
       const y = parts[0];
       const m = parts[1].padStart(2, '0');
-      const d = parts[2].padStart(2, '0');
+      const d = parts[2].substring(0, 2).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
-    return dateStr;
+
+    // M月D日 または M/D（年が省略されているケース）、オプションで時刻 (HH:mm または HH:mm:ss)
+    const monthDayMatch = trimmed.match(/^(\d{1,2})[月\/](\d{1,2})日?(?:\s+(\d{1,2}:\d{1,2}(?::\d{1,2})?))?$/);
+    if (monthDayMatch) {
+      const y = fallbackYear || new Date().getFullYear();
+      const m = monthDayMatch[1].padStart(2, '0');
+      const d = monthDayMatch[2].padStart(2, '0');
+      const time = monthDayMatch[3] ? ` ${monthDayMatch[3]}` : '';
+      return `${y}-${m}-${d}${time}`;
+    }
+
+    return trimmed;
+  }
+
+  /**
+   * 対象月文字列を YYYY-MM 形式に標準化する
+   */
+  private static formatTargetMonth(monthStr: string | undefined): string | undefined {
+    if (!monthStr || monthStr.trim() === '') return undefined;
+    const trimmed = monthStr.trim();
+    
+    // 和暦変換 例: R7.4, H30/12
+    const eraMatch = trimmed.match(/^([RHS])(\d{1,2})[\.\/](\d{1,2})/i);
+    if (eraMatch) {
+      const era = eraMatch[1].toUpperCase();
+      let year = parseInt(eraMatch[2], 10);
+      const m = eraMatch[3].padStart(2, '0');
+      if (era === 'R') year += 2018;
+      else if (era === 'H') year += 1988;
+      else if (era === 'S') year += 1925;
+      return `${year}-${m}`;
+    }
+    
+    const parts = trimmed.replace(/\//g, '-').split('-');
+    if (parts.length >= 2) {
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      return `${y}-${m}`;
+    }
+    
+    return trimmed;
   }
 
   // ============================================================
@@ -52,12 +119,12 @@ export class GoogleSheetsService {
         id: row[0],
         name: row[1],
         kana: row[2],
-        birthDate: row[3],
-        joinDate: row[4],
+        birthDate: this.standardizeDate(row[3]),
+        joinDate: this.standardizeDate(row[4]),
         organization: row[5] as Organization | '両方',
         representativeId: row[6] || undefined,
         status: (row[7] as '現役' | '休眠' | '退会') || '現役',
-        leaveDate: row[8] || undefined,
+        leaveDate: row[8] ? this.standardizeDate(row[8]) : undefined,
         exemptionFlag: row[9] === 'TRUE' || row[9] === 'true',
         notes: row[10] || '',
         yomigana: row[11] || undefined,
@@ -131,10 +198,10 @@ export class GoogleSheetsService {
         rowNumber: index + 2,
         organization: row[0] as Organization | '両方',
         category: row[1],
-        amount: parseInt(row[2] || '0', 10),
-        initialBalance: parseInt(row[3] || '0', 10),
-        finalBalance: row[4] !== undefined && row[4] !== '' ? parseInt(row[4], 10) : undefined,
-        year: parseInt(row[5] || String(new Date().getFullYear()), 10)
+        amount: this.parseNumber(row[2]),
+        initialBalance: this.parseNumber(row[3]),
+        finalBalance: row[4] !== undefined && row[4] !== '' ? this.parseNumber(row[4]) : undefined,
+        year: this.parseNumber(row[5]) || new Date().getFullYear()
       }));
     } catch (e) {
       console.error('Failed to fetch M_Budgets', e);
@@ -155,20 +222,23 @@ export class GoogleSheetsService {
       const data = await res.json();
       if (!data.values) return [];
 
-      return data.values.map((row: string[]) => ({
-        id: row[0],
-        timestamp: row[1],
-        date: this.standardizeDate(row[2]),
-        organization: row[3] as '道院' | 'スポ少',
-        memberId: row[4],
-        item: row[5],
-        amount: parseInt(row[6] || '0', 10),
-        paymentMethod: row[7],
-        enteredById: row[8],
-        isCancelled: row[9] === 'TRUE' || row[9] === 'true',
-        fiscalYear: parseInt(row[10] || String(new Date().getFullYear()), 10),
-        targetMonth: row[11] || undefined
-      }));
+      return data.values.map((row: string[]) => {
+        const fiscalYear = this.parseNumber(row[10]) || new Date().getFullYear();
+        return {
+          id: row[0],
+          timestamp: this.standardizeDate(row[1], fiscalYear) || row[1],
+          date: this.standardizeDate(row[2], fiscalYear),
+          organization: row[3] as '道院' | 'スポ少',
+          memberId: row[4],
+          item: row[5],
+          amount: this.parseNumber(row[6]),
+          paymentMethod: row[7],
+          enteredById: row[8],
+          isCancelled: row[9] === 'TRUE' || row[9] === 'true',
+          fiscalYear,
+          targetMonth: this.formatTargetMonth(row[11]) || undefined
+        };
+      });
     } catch (e) {
       console.error('Failed to fetch T_Transactions', e);
       return [];
@@ -235,20 +305,23 @@ export class GoogleSheetsService {
       const data = await res.json();
       if (!data.values) return [];
 
-      return data.values.map((row: string[]) => ({
-        id: row[0],
-        timestamp: row[1],
-        date: this.standardizeDate(row[2]),
-        organization: row[3] as '道院' | 'スポ少' | '両方',
-        category: row[4],
-        description: row[5],
-        amount: parseInt(row[6] || '0', 10),
-        paymentMethod: row[7],
-        receiptUrl: row[8],
-        enteredById: row[9],
-        isCancelled: row[10] === 'TRUE' || row[10] === 'true',
-        fiscalYear: parseInt(row[11] || String(new Date().getFullYear()), 10)
-      }));
+      return data.values.map((row: string[]) => {
+        const fiscalYear = this.parseNumber(row[11]) || new Date().getFullYear();
+        return {
+          id: row[0],
+          timestamp: this.standardizeDate(row[1], fiscalYear) || row[1],
+          date: this.standardizeDate(row[2], fiscalYear),
+          organization: row[3] as '道院' | 'スポ少' | '両方',
+          category: row[4],
+          description: row[5],
+          amount: this.parseNumber(row[6]),
+          paymentMethod: row[7],
+          receiptUrl: row[8],
+          enteredById: row[9],
+          isCancelled: row[10] === 'TRUE' || row[10] === 'true',
+          fiscalYear
+        };
+      });
     } catch (e) {
       console.error('Failed to fetch T_Expenses', e);
       return [];

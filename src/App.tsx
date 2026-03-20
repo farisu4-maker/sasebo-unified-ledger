@@ -116,11 +116,11 @@ function App() {
           GoogleSheetsService.fetchExpenses(),
         ]);
 
-        if (fetchedMembers.length > 0) setMembers(fetchedMembers);
-        if (fetchedBudgets.length > 0) setBudgets(fetchedBudgets);
-        // トランザクション・支出はシートが空なら初期サンプルを維持
-        if (fetchedTx.length > 0) setTransactions(fetchedTx);
-        if (fetchedEx.length > 0) setExpenses(fetchedEx);
+        // シートのデータを直接正とする（空なら空配列を設定し、ハードコードをフォールバックにしない）
+        setMembers(fetchedMembers);
+        setBudgets(fetchedBudgets);
+        setTransactions(fetchedTx);
+        setExpenses(fetchedEx);
 
         if (OfflineQueueManager.getPendingCount() > 0) await syncOfflineData();
       } catch (e) {
