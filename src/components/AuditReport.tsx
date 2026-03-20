@@ -265,7 +265,8 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             <p className="no-print text-xs text-gray-500 mb-2">
               ※役職→ID順で並べています。「両方」所属・過去実績がある拳士は道院・スポ少の各行に表示。金額はT_Transactionsの実績値。
             </p>
-            <table className="min-w-full text-center text-[11px] border border-gray-600">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-center text-[11px] md:text-xs border border-gray-600">
               <thead className="bg-gray-100 border-b border-gray-600 font-bold">
                 <tr>
                   <th className="border-r border-gray-600 py-1 px-2 w-32 text-left">氏名</th>
@@ -329,6 +330,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                 </tr>
               </tbody>
             </table>
+            </div>
             {rowData.length === 0 && (
               <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間の在籍拳士データがありません。</p>
             )}
@@ -365,9 +367,9 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             )}
 
             {/* 人数サマリー */}
-            <section className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-              <h3 className="font-bold text-lg mb-4 text-gray-800">令和{(fiscalYear - 2018)}年度 拳士在籍概況</h3>
-              <div className="grid grid-cols-2 gap-8">
+            <section className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+              <h3 className="font-bold text-base md:text-lg mb-4 text-gray-800">令和{(fiscalYear - 2018)}年度 拳士在籍概況</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 <div>
                   <h4 className="font-bold text-blue-800 mb-2 border-b border-blue-200">道院</h4>
                   <div className="flex justify-between text-sm">
@@ -392,9 +394,9 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             {/* 団体別収支報告書 */}
             <section>
               <div className="text-center mb-6">
-                <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">令和{(fiscalYear - 2018)}年度 団体別収支報告書</h1>
+                <h1 className="text-lg md:text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">令和{(fiscalYear - 2018)}年度 団体別収支報告書</h1>
               </div>
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 {/* 道院 */}
                 {(printMode === 'all' || printMode === 'doin') && (
                   <div className={printMode === 'doin' ? 'col-span-2' : ''}>
@@ -426,7 +428,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                 )}
               </div>
 
-              <div className="mt-16 flex justify-end space-x-16 pr-8">
+              <div className="mt-16 flex flex-col md:flex-row justify-end space-y-8 md:space-y-0 md:space-x-16 pr-0 md:pr-8">
                 <div className="text-center">
                   <p className="mb-8">上記のとおり相違ありません。</p>
                   <p className="border-t border-gray-800 pt-1 w-48 mx-auto">道院長・代表者</p>
@@ -435,6 +437,52 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                   <p className="mb-8">上記を監査し、適正と認めます。</p>
                   <p className="border-t border-gray-800 pt-1 w-48 mx-auto">監査役</p>
                 </div>
+              </div>
+            </section>
+
+            {/* 支出一覧（明細） */}
+            <section className="print:break-before-page break-before-page pt-8 print:pt-0">
+              <div className="text-center mb-6">
+                <h1 className="text-lg md:text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">令和{(fiscalYear - 2018)}年度 支出明細表</h1>
+              </div>
+              <p className="no-print text-xs text-gray-500 mb-2">
+                ※該当年度・組織に紐づく支出データを一覧表示しています。印刷時の証憑監査用としても利用可能です。
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-[11px] md:text-xs border-collapse border border-gray-600">
+                  <thead className="bg-gray-100 border-b border-gray-600 font-bold">
+                    <tr>
+                      <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">日付</th>
+                      {printMode === 'all' && <th className="border-r border-gray-600 py-1.5 px-2">組織</th>}
+                      <th className="border-r border-gray-600 py-1.5 px-2">勘定科目</th>
+                      <th className="border-r border-gray-600 py-1.5 px-2">摘要</th>
+                      <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">支払方法</th>
+                      <th className="border-r border-gray-600 py-1.5 px-2 text-right whitespace-nowrap">金額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentExpenses
+                      .filter(ex => printMode === 'all' || (printMode === 'doin' && ex.organization === '道院') || (printMode === 'spo' && ex.organization === 'スポ少'))
+                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .map((ex, idx) => (
+                      <tr key={ex.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.date}</td>
+                        {printMode === 'all' && (
+                          <td className={`border border-gray-600 py-1 px-2 whitespace-nowrap font-medium ${ex.organization === '道院' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                            {ex.organization}
+                          </td>
+                        )}
+                        <td className="border border-gray-600 py-1 px-2">{ex.category}</td>
+                        <td className="border border-gray-600 py-1 px-2">{ex.description}</td>
+                        <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.paymentMethod}</td>
+                        <td className="border border-gray-600 py-1 px-2 text-right font-medium">¥{ex.amount.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {currentExpenses.filter(ex => printMode === 'all' || (printMode === 'doin' && ex.organization === '道院') || (printMode === 'spo' && ex.organization === 'スポ少')).length === 0 && (
+                  <p className="no-print text-sm text-gray-500 mt-4 text-center">対象期間・組織の支出データがありません。</p>
+                )}
               </div>
             </section>
           </div>
