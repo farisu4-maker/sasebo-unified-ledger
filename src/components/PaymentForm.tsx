@@ -8,10 +8,17 @@ interface PaymentFormProps {
   feeItems: FeeItem[];
   transactions: Transaction[];
   onClose: () => void;
-  onSubmit: (data: { memberId: string; item: string; amount: number; paymentMethod: string; organization?: string }) => void;
+  onSubmit: (data: { memberId: string; item: string; amount: number; paymentMethod: string; organization?: string; date: string; targetMonth: string }) => void;
 }
 
 export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, transactions, onClose, onSubmit }) => {
+  const [paymentDate, setPaymentDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [targetMonth, setTargetMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [selectedOrg] = useState<string>(
     member.organization === '両方' ? '道院' : member.organization
@@ -86,9 +93,6 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
     
     // 過納・重複チェックロジック
     if (selectedItem === '信徒香資（月）' || selectedItem === 'スポ少会費（月）') {
-      const d = new Date();
-      const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      
       const targetAmount = 
         selectedItem === '信徒香資（月）' 
           ? (member.role ? 1500 : (member.organization === '両方' ? 2500 : feeItems.find(f => f.name === '信徒香資（月）')?.amount || 3000))
@@ -113,7 +117,9 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
       item: selectedItem,
       amount,
       paymentMethod,
-      organization: targetOrg
+      organization: targetOrg,
+      date: paymentDate,
+      targetMonth
     });
   };
 
@@ -153,6 +159,29 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">入金処理日</label>
+                <input 
+                  type="date" 
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">対象月</label>
+                <input 
+                  type="month" 
+                  value={targetMonth}
+                  onChange={(e) => setTargetMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">費目</label>
               <select 

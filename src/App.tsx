@@ -144,13 +144,13 @@ function App() {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const handlePaymentSubmit = useCallback(async (data: {
-    memberId: string; item: string; amount: number; paymentMethod: string; organization?: string
+    memberId: string; item: string; amount: number; paymentMethod: string; organization?: string; date: string; targetMonth: string;
   }) => {
     const now = new Date();
     const targetMember = members.find((m: Member) => m.id === data.memberId);
     const newTx: Transaction = {
       id: `T${Date.now()}`,
-      date: now.toISOString().split('T')[0],
+      date: data.date,
       memberId: data.memberId,
       organization: (data.organization as '道院' | 'スポ少') ||
         (targetMember?.organization === '道院' ? '道院' : 'スポ少'),
@@ -159,7 +159,7 @@ function App() {
       paymentMethod: data.paymentMethod,
       enteredById: 'U001',
       timestamp: now.toISOString(),
-      targetMonth: getCurrentMonth(), // 対象月を自動設定
+      targetMonth: data.targetMonth,
       fiscalYear: activeFiscalYear,
     };
 

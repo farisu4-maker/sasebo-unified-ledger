@@ -473,7 +473,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                       <thead className="bg-gray-100 border-b border-gray-600 font-bold">
                         <tr>
                           <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">日付</th>
-                          <th className="border-r border-gray-600 py-1.5 px-2">勘定科目</th>
+                          <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">勘定科目</th>
                           <th className="border-r border-gray-600 py-1.5 px-2">摘要</th>
                           <th className="border-r border-gray-600 py-1.5 px-2 whitespace-nowrap">支払方法</th>
                           <th className="border-r border-gray-600 py-1.5 px-2 text-right whitespace-nowrap">金額</th>
@@ -483,7 +483,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                         {orgExpenses.map((ex, idx) => (
                           <tr key={ex.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} print:break-inside-avoid`}>
                             <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.date}</td>
-                            <td className="border border-gray-600 py-1 px-2">{ex.category}</td>
+                            <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.category}</td>
                             <td className="border border-gray-600 py-1 px-2">{ex.description}</td>
                             <td className="border border-gray-600 py-1 px-2 whitespace-nowrap">{ex.paymentMethod}</td>
                             <td className="border border-gray-600 py-1 px-2 text-right font-medium">¥{ex.amount.toLocaleString()}</td>

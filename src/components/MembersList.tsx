@@ -123,14 +123,13 @@ export const MembersList: React.FC<MembersListProps> = ({
               <table className="min-w-full text-left text-xs md:text-sm whitespace-nowrap bg-white border border-gray-300">
                 <thead className="uppercase tracking-wider border-b-2 font-medium text-gray-600 bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-3 py-2 border border-gray-300">ID</th>
-                    <th scope="col" className="px-3 py-2 border border-gray-300">氏名 / 年齢</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300">氏名 / 年齢 / ID</th>
+                    <th scope="col" className="px-3 py-2 border border-gray-300 no-print">アクション</th>
                     <th scope="col" className="px-3 py-2 border border-gray-300">役職</th>
                     <th scope="col" className="px-3 py-2 border border-gray-300">所属</th>
                     <th scope="col" className="px-3 py-2 border border-gray-300">加入日 / 脱退日</th>
                     <th scope="col" className="px-3 py-2 border border-gray-300">ステータス</th>
                     <th scope="col" className="px-3 py-2 border border-gray-300">備考</th>
-                    <th scope="col" className="px-3 py-2 border border-gray-300 no-print">アクション</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -147,12 +146,12 @@ export const MembersList: React.FC<MembersListProps> = ({
                     isActive ? 'hover:bg-indigo-50' : 'bg-gray-50 opacity-80 hover:bg-gray-100'
                   }`}
                 >
-                  {/* ID */}
-                  <td className="px-3 py-2 border border-gray-300 text-gray-900 font-medium">{member.id}</td>
-
-                  {/* 氏名 + ヨミガナ + 年齢 */}
+                  {/* 氏名 + ID + ヨミガナ + 年齢 */}
                   <td className="px-3 py-2 border border-gray-300">
-                    <div className={`font-bold text-base ${!isActive ? 'text-gray-400' : 'text-gray-900'}`}>{member.name}</div>
+                    <div className="flex items-baseline gap-2">
+                      <div className={`font-bold text-base ${!isActive ? 'text-gray-400' : 'text-gray-900'}`}>{member.name}</div>
+                      <span className="text-xs text-gray-500 font-mono">ID: {member.id}</span>
+                    </div>
                     {(member.yomigana || member.kana) && (
                       <span className="block text-xs font-normal text-gray-400 tracking-wider">
                         {member.yomigana || member.kana}
@@ -165,6 +164,47 @@ export const MembersList: React.FC<MembersListProps> = ({
                         </svg>
                         {age}歳（本日時点）
                       </span>
+                    )}
+                  </td>
+
+                  {/* アクション */}
+                  <td className="px-3 py-2 border border-gray-300 no-print">
+                    {isEditing ? (
+                      <div className="flex gap-1 flex-wrap">
+                        <button
+                          onClick={() => commitEdit(member)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 flex-wrap">
+                        {isActive && (
+                          <button
+                            onClick={() => onSelectMember(member)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs"
+                          >
+                            入金
+                          </button>
+                        )}
+                        <button
+                          onClick={() => startEdit(member)}
+                          className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
+                          title="加入日・脱退日・所属を編集"
+                        >
+                          <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          編集
+                        </button>
+                      </div>
                     )}
                   </td>
 
@@ -253,46 +293,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                     {member.notes}
                   </td>
 
-                  {/* アクション */}
-                  <td className="px-3 py-2 border border-gray-300 no-print">
-                    {isEditing ? (
-                      <div className="flex gap-1 flex-wrap">
-                        <button
-                          onClick={() => commitEdit(member)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
-                        >
-                          保存
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
-                        >
-                          キャンセル
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-1 flex-wrap">
-                        {isActive && (
-                          <button
-                            onClick={() => onSelectMember(member)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs"
-                          >
-                            入金
-                          </button>
-                        )}
-                        <button
-                          onClick={() => startEdit(member)}
-                          className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
-                          title="加入日・脱退日・所属を編集"
-                        >
-                          <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          編集
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                  {/* 備考 ends here, Action previously was here */}
                 </tr>
               );
             })}

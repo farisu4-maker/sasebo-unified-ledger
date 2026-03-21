@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { Expense } from '../types';
+import { Expense, Member } from '../types';
 import { parseJapaneseDate } from '../utils/dateParser';
+interface ExpenseFormSubmitData {
+  date: string;
+  organization: '道院' | 'スポ少';
+  category: string;
+  description: string;
+  amount: number;
+  paymentMethod: string;
+  receiptUrl: string | null;
+}
 
 interface ExpenseFormProps {
-  onSubmit: (expense: any) => void;
-  memberships?: any;
+  onSubmit: (expense: ExpenseFormSubmitData) => void;
+  memberships?: Member[];
   expenses?: Expense[];
   fiscalYear?: number;
 }
@@ -79,8 +88,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500 border-b">
             <tr>
-              <th className="py-2 px-3 text-left">日付</th>
-              <th className="py-2 px-3 text-left">科目</th>
+              <th className="py-2 px-3 text-left whitespace-nowrap">日付</th>
+              <th className="py-2 px-3 text-left whitespace-nowrap">科目</th>
               <th className="py-2 px-3 text-left">説明</th>
               <th className="py-2 px-3 text-left">支払方法</th>
               <th className="py-2 px-3 text-right">金額</th>
@@ -92,7 +101,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
             ) : rows.map(ex => (
               <tr key={ex.id} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${ex.isCancelled ? 'opacity-40 line-through' : ''}`}>
                 <td className="py-2 px-3 whitespace-nowrap">{ex.date}</td>
-                <td className="py-2 px-3">
+                <td className="py-2 px-3 whitespace-nowrap">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${orgBadgeColor(ex.organization)}`}>
                     {ex.category}
                   </span>
@@ -124,13 +133,11 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 日付
-                <span className="ml-1 text-xs text-gray-400">（R7.4.20 / 2025/04/20 等も可）</span>
               </label>
               <input
-                type="text"
+                type="date"
                 value={dateInput}
                 onChange={e => { setDateInput(e.target.value); setDateError(null); }}
-                placeholder="例: R7.4.20 / 2025/04/20 / 令和7年4月20日"
                 className={`w-full border rounded-md py-2 px-3 focus:ring-rose-500 focus:border-rose-500 ${dateError ? 'border-red-500' : 'border-gray-300'}`}
                 required
               />
