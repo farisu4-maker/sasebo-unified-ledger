@@ -12,11 +12,6 @@ import { Member, Organization, Transaction, Expense, Budget } from './types';
 import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 
-// 当月の YYYY-MM 文字列を返す
-function getCurrentMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
 
 // ── 通知バナー型定義 ─────────────────────────────────────
 type NotificationKind = 'success' | 'error';
@@ -191,7 +186,7 @@ function App() {
 
   const handleExpenseSubmit = useCallback(async (data: {
     date: string; organization: '道院' | 'スポ少'; category: string; description: string;
-    amount: number; paymentMethod: string; receiptUrl?: string;
+    amount: number; paymentMethod: string; receiptUrl?: string | null;
   }) => {
     const now = new Date();
     const newEx: Expense = {
@@ -202,7 +197,7 @@ function App() {
       description: data.description,
       amount: data.amount,
       paymentMethod: data.paymentMethod,
-      receiptUrl: data.receiptUrl,
+      receiptUrl: data.receiptUrl ?? undefined,
       enteredById: 'U001',
       timestamp: now.toISOString(),
       fiscalYear: activeFiscalYear,
