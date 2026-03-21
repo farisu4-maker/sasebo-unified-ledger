@@ -10,7 +10,7 @@ interface MembersListProps {
   fiscalYear: number;
   onSelectMember: (member: Member) => void;
   onMemberUpdate: (member: Member) => void;
-  onTransactionUpdate?: (id: string, newAmount: number) => void;
+  onTransactionUpdate?: (updated: Transaction) => void | Promise<void>;
 }
 
 /** birthDate (YYYY-MM-DD) → 本日時点の満年齢 */
@@ -111,7 +111,7 @@ export const MembersList: React.FC<MembersListProps> = ({
   
   const handleTxSave = (tx: Transaction) => {
     if (txEditAmount !== '' && typeof txEditAmount === 'number' && txEditAmount !== tx.amount && onTransactionUpdate) {
-      onTransactionUpdate(tx.id, txEditAmount);
+      onTransactionUpdate({ ...tx, amount: txEditAmount });
     }
     setTxEditingId(null);
   };

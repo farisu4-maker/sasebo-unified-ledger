@@ -16,7 +16,7 @@ interface ExpenseFormProps {
   memberships?: Member[];
   expenses?: Expense[];
   fiscalYear?: number;
-  onExpenseUpdate?: (id: string, newAmount: number) => void;
+  onExpenseUpdate?: (updated: Expense) => void | Promise<void>;
 }
 
 const PRESET_CATEGORIES = ['保険料', '交際費', '会場費', '備品代', '消耗品費', '通信費', '水道光熱費', 'その他'];
@@ -88,7 +88,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
 
     const handleSave = (ex: Expense) => {
       if (editAmount !== '' && typeof editAmount === 'number' && editAmount !== ex.amount && onExpenseUpdate) {
-        onExpenseUpdate(ex.id, editAmount);
+        onExpenseUpdate({ ...ex, amount: editAmount });
       }
       setEditingId(null);
     };

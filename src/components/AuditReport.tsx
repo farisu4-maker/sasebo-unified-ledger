@@ -9,7 +9,7 @@ interface AuditReportProps {
   expenses: Expense[];
   budgets: Budget[];
   fiscalYear: number;
-  onTransactionUpdate?: (id: string, newAmount: number) => void;
+  onTransactionUpdate?: (updated: Transaction) => void | Promise<void>;
 }
 
 type ReportTab = 'report' | 'matrix';

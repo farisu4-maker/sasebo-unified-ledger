@@ -7,7 +7,7 @@ interface PaymentStatusMatrixProps {
   transactions: Transaction[];
   fiscalYear: number;
   org: '道院' | 'スポ少';
-  onTransactionUpdate?: (id: string, newAmount: number) => void;
+  onTransactionUpdate?: (updated: Transaction) => void | Promise<void>;
 }
 
 /** 月別 YYYY-MM 文字列を生成（4月始まり） */
@@ -45,7 +45,7 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
 
   const handleSave = (tx: Transaction) => {
     if (editAmount !== '' && typeof editAmount === 'number' && editAmount !== tx.amount && onTransactionUpdate) {
-      onTransactionUpdate(tx.id, editAmount);
+      onTransactionUpdate({ ...tx, amount: editAmount });
     }
     setEditingId(null);
   };
