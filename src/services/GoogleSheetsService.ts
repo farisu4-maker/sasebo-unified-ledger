@@ -302,6 +302,49 @@ export class GoogleSheetsService {
   }
 
   /**
+   * トランザクション情報を更新します（T_Transactionsの該当行を全列UPDATE）
+   */
+  static async updateTransaction(tx: Transaction): Promise<boolean> {
+    try {
+      const res = await this.fetchApi('T_Transactions!A:A');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      const rowIndex = data.values.findIndex((row: string[]) => row[0] === tx.id);
+      if (rowIndex === -1) {
+        console.error(`Transaction ID ${tx.id} not found in T_Transactions`);
+        return false;
+      }
+      const sheetRow = rowIndex + 1;
+
+      const values = [[
+        tx.id,
+        tx.timestamp,
+        tx.date,
+        tx.organization,
+        tx.memberId,
+        tx.item,
+        tx.amount,
+        tx.paymentMethod,
+        tx.enteredById,
+        tx.isCancelled ? 'TRUE' : 'FALSE',
+        tx.fiscalYear || new Date().getFullYear(),
+        tx.targetMonth || ''
+      ]];
+
+      const updateRes = await this.batchUpdateValues([{
+        range: `T_Transactions!A${sheetRow}:L${sheetRow}`,
+        values
+      }]);
+
+      return updateRes.ok;
+    } catch (e) {
+      console.error('Failed to update transaction', e);
+      return false;
+    }
+  }
+
+  /**
    * トランザクションを論理削除（取消）します
    * J列（インデックス9）の取消フラグを TRUE に
    */
@@ -379,6 +422,49 @@ export class GoogleSheetsService {
       return true;
     } catch (e) {
       console.error('Failed to sync expense', e);
+      return false;
+    }
+  }
+
+  /**
+   * 支出情報を更新します（T_Expensesの該当行を全列UPDATE）
+   */
+  static async updateExpense(expense: Expense): Promise<boolean> {
+    try {
+      const res = await this.fetchApi('T_Expenses!A:A');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      const rowIndex = data.values.findIndex((row: string[]) => row[0] === expense.id);
+      if (rowIndex === -1) {
+        console.error(`Expense ID ${expense.id} not found in T_Expenses`);
+        return false;
+      }
+      const sheetRow = rowIndex + 1;
+
+      const values = [[
+        expense.id,
+        expense.timestamp,
+        expense.date,
+        expense.organization,
+        expense.category,
+        expense.description || '',
+        expense.amount,
+        expense.paymentMethod,
+        expense.receiptUrl || '',
+        expense.enteredById,
+        expense.isCancelled ? 'TRUE' : 'FALSE',
+        expense.fiscalYear || new Date().getFullYear()
+      ]];
+
+      const updateRes = await this.batchUpdateValues([{
+        range: `T_Expenses!A${sheetRow}:L${sheetRow}`,
+        values
+      }]);
+
+      return updateRes.ok;
+    } catch (e) {
+      console.error('Failed to update expense', e);
       return false;
     }
   }

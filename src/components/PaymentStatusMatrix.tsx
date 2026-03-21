@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Member, Transaction } from '../types';
 import { sortMembers } from '../utils/memberSort';
 
@@ -7,6 +7,7 @@ interface PaymentStatusMatrixProps {
   transactions: Transaction[];
   fiscalYear: number;
   org: '道院' | 'スポ少';
+  onTransactionUpdate?: (id: string, newAmount: number) => void;
 }
 
 /** 月別 YYYY-MM 文字列を生成（4月始まり） */
@@ -30,9 +31,24 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
   members,
   transactions,
   fiscalYear,
-  org
+  org,
+  onTransactionUpdate
 }) => {
   const activeOrg = org;
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<number | ''>('');
+
+  const handleEditClick = (tx: Transaction) => {
+    setEditingId(tx.id);
+    setEditAmount(tx.amount);
+  };
+
+  const handleSave = (tx: Transaction) => {
+    if (editAmount !== '' && typeof editAmount === 'number' && editAmount !== tx.amount && onTransactionUpdate) {
+      onTransactionUpdate(tx.id, editAmount);
+    }
+    setEditingId(null);
+  };
 
   const fyStart = `${fiscalYear}-04-01`;
   const fyEnd   = `${fiscalYear + 1}-03-31`;
@@ -135,19 +151,39 @@ export const PaymentStatusMatrix: React.FC<PaymentStatusMatrixProps> = ({
                     );
                   }
                   if (tx) {
+                    if (editingId === tx.id) {
+                      return (
+                        <td key={m} className="py-1 px-1 text-center border-r border-gray-100 bg-green-50">
+                          <input
+                            type="number"
+                            className="w-full min-w-[40px] text-center text-[10px] border border-green-400 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-green-500"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                            onBlur={() => handleSave(tx)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSave(tx);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            autoFocus
+                          />
+                        </td>
+                      );
+                    }
+
                     return (
                       <td
                         key={m}
-                        className="py-2 px-1 text-center border-r border-gray-100 bg-green-50"
-                        title={`${tx.date} 入金: ¥${tx.amount.toLocaleString()}`}
+                        className="py-1 px-1 text-center border-r border-gray-100 bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
+                        title={`${tx.date} 入金: ¥${tx.amount.toLocaleString()} (クリックで修正)`}
+                        onClick={() => handleEditClick(tx)}
                       >
                         <span className="inline-flex items-center justify-center w-full">
                           <span className="bg-green-200 text-green-800 font-bold text-[10px] px-1.5 py-0.5 rounded-full border border-green-400">
                             済
                           </span>
                         </span>
-                        <div className="text-[9px] text-green-600 mt-0.5 leading-none">
-                          {tx.date.slice(5)}
+                        <div className="text-[9px] text-green-700 mt-1 leading-none font-mono tracking-tighter">
+                          ¥{tx.amount.toLocaleString()}
                         </div>
                       </td>
                     );

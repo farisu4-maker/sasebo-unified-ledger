@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Member, Organization } from '../types';
+import { Member, Organization, Transaction } from '../types';
 import { parseJapaneseDate } from '../utils/dateParser';
 import { sortMembers } from '../utils/memberSort';
 import { GoogleSheetsService } from '../services/GoogleSheetsService';
 
 interface MembersListProps {
   members: Member[];
+  transactions: Transaction[];
+  fiscalYear: number;
   onSelectMember: (member: Member) => void;
   onMemberUpdate: (member: Member) => void;
+  onTransactionUpdate?: (id: string, newAmount: number) => void;
 }
 
 /** birthDate (YYYY-MM-DD) → 本日時点の満年齢 */
@@ -37,13 +40,17 @@ function calcStatus(member: Member): { label: string; color: string } {
 const ORG_OPTIONS: Organization[] = ['道院', 'スポ少', '両方'];
 
 export const MembersList: React.FC<MembersListProps> = ({
-  members, onSelectMember, onMemberUpdate
+  members, transactions, fiscalYear, onSelectMember, onMemberUpdate, onTransactionUpdate
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editJoinDate, setEditJoinDate] = useState('');
   const [editLeaveDate, setEditLeaveDate] = useState('');
   const [editOrg, setEditOrg] = useState<Organization>('道院');
   const [dateError, setDateError] = useState<string | null>(null);
+
+  const [historyModalMember, setHistoryModalMember] = useState<Member | null>(null);
+  const [txEditingId, setTxEditingId] = useState<string | null>(null);
+  const [txEditAmount, setTxEditAmount] = useState<number | ''>('');
 
   const startEdit = (member: Member) => {
     setEditingId(member.id);
@@ -90,6 +97,24 @@ export const MembersList: React.FC<MembersListProps> = ({
   };
 
   const sorted = sortMembers(members);
+
+  const fyStart = `${fiscalYear}-04-01`;
+  const fyEnd = `${fiscalYear + 1}-03-31`;
+  const memberTransactions = historyModalMember
+    ? transactions.filter(t => t.memberId === historyModalMember.id && !t.isCancelled && t.date >= fyStart && t.date <= fyEnd).sort((a,b) => b.date.localeCompare(a.date))
+    : [];
+
+  const handleTxEditClick = (tx: Transaction) => {
+    setTxEditingId(tx.id);
+    setTxEditAmount(tx.amount);
+  };
+  
+  const handleTxSave = (tx: Transaction) => {
+    if (txEditAmount !== '' && typeof txEditAmount === 'number' && txEditAmount !== tx.amount && onTransactionUpdate) {
+      onTransactionUpdate(tx.id, txEditAmount);
+    }
+    setTxEditingId(null);
+  };
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
@@ -169,22 +194,6 @@ export const MembersList: React.FC<MembersListProps> = ({
 
                   {/* アクション */}
                   <td className="px-3 py-2 border border-gray-300 no-print">
-                    {isEditing ? (
-                      <div className="flex gap-1 flex-wrap">
-                        <button
-                          onClick={() => commitEdit(member)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
-                        >
-                          保存
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium py-1 px-2 rounded shadow-sm transition-colors"
-                        >
-                          キャンセル
-                        </button>
-                      </div>
-                    ) : (
                       <div className="flex gap-1 flex-wrap">
                         {isActive && (
                           <button
@@ -195,17 +204,12 @@ export const MembersList: React.FC<MembersListProps> = ({
                           </button>
                         )}
                         <button
-                          onClick={() => startEdit(member)}
-                          className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
-                          title="加入日・脱退日・所属を編集"
+                          onClick={() => setHistoryModalMember(member)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-2 rounded-md shadow-sm transition-colors text-xs flex items-center"
                         >
-                          <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          編集
+                          入金履歴
                         </button>
                       </div>
-                    )}
                   </td>
 
                   {/* 役職 */}
@@ -245,7 +249,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                   </td>
 
                   {/* 加入日 / 脱退日（インライン編集） */}
-                  <td className="px-3 py-2 border border-gray-300 text-xs">
+                  <td className="px-3 py-2 border border-gray-300 text-xs text-gray-600 relative">
                     {isEditing ? (
                       <div className="space-y-1">
                         {dateError && (
@@ -265,15 +269,30 @@ export const MembersList: React.FC<MembersListProps> = ({
                           value={editLeaveDate}
                           onChange={e => setEditLeaveDate(e.target.value)}
                           placeholder="脱退なしは空欄"
-                          className="border border-gray-300 rounded px-2 py-1 w-44 text-xs focus:ring-rose-500 focus:border-rose-500"
+                          className="border border-gray-300 rounded px-2 py-1 w-44 text-xs focus:ring-rose-500 focus:border-rose-500 mb-2"
                         />
+                        <div className="flex gap-1">
+                          <button onClick={() => commitEdit(member)} className="bg-indigo-600 text-white px-2 py-1 rounded">保存</button>
+                          <button onClick={cancelEdit} className="bg-gray-200 text-gray-700 px-2 py-1 rounded">取消</button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-0.5 text-gray-600">
-                        <div>加入: <span className="font-medium">{member.joinDate}</span></div>
-                        {member.leaveDate && (
-                          <div className="text-rose-600">脱退: <span className="font-medium">{member.leaveDate}</span></div>
-                        )}
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-0.5">
+                          <div>加入: <span className="font-medium">{member.joinDate}</span></div>
+                          {member.leaveDate && (
+                            <div className="text-rose-600">脱退: <span className="font-medium">{member.leaveDate}</span></div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => startEdit(member)}
+                          className="text-amber-600 hover:text-amber-800 p-1 no-print"
+                          title="編集"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
                       </div>
                     )}
                   </td>
@@ -303,6 +322,78 @@ export const MembersList: React.FC<MembersListProps> = ({
           </div>
         ))}
       </div>
+
+      {/* 入金履歴モーダル */}
+      {historyModalMember && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-bold text-lg text-gray-800">
+                {historyModalMember.name} さんの入金履歴 ({fiscalYear}年度)
+              </h3>
+              <button
+                onClick={() => setHistoryModalMember(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              {memberTransactions.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">今年度の入金履歴はありません。</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="py-2 px-3 text-left">日付</th>
+                      <th className="py-2 px-3 text-left">対象月</th>
+                      <th className="py-2 px-3 text-left">費目</th>
+                      <th className="py-2 px-3 text-right">金額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memberTransactions.map(tx => (
+                      <tr key={tx.id} className="border-b hover:bg-gray-50">
+                        <td className="py-2 px-3 whitespace-nowrap">{tx.date}</td>
+                        <td className="py-2 px-3">{tx.targetMonth || '-'}</td>
+                        <td className="py-2 px-3">{tx.item}</td>
+                        <td className="py-2 px-3 text-right font-mono font-medium text-indigo-700">
+                          {txEditingId === tx.id ? (
+                            <div className="flex justify-end gap-1">
+                              <input
+                                type="number"
+                                className="w-20 border rounded px-1 text-right text-sm"
+                                value={txEditAmount}
+                                onChange={e => setTxEditAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                                onBlur={() => handleTxSave(tx)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleTxSave(tx);
+                                  if (e.key === 'Escape') setTxEditingId(null);
+                                }}
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <span 
+                              className="cursor-pointer hover:bg-indigo-50 px-1 rounded transition-colors"
+                              onClick={() => handleTxEditClick(tx)}
+                              title="クリックで編集"
+                            >
+                              ¥{tx.amount.toLocaleString()}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

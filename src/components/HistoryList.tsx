@@ -99,17 +99,17 @@ export const HistoryList: React.FC<HistoryListProps> = ({
         <p className="text-gray-500 text-center py-8">{viewYear}年度の履歴データはありません。</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm whitespace-nowrap">
+          <table className="min-w-full text-left text-xs whitespace-nowrap">
             <thead className="uppercase tracking-wider border-b-2 font-medium text-gray-600 bg-gray-50">
               <tr>
-                <th scope="col" className="px-4 py-3 border-x text-center">区分</th>
-                <th scope="col" className="px-4 py-3 border-x">日付</th>
-                <th scope="col" className="px-4 py-3 border-x">所属</th>
-                <th scope="col" className="px-4 py-3 border-x">納入者 / 摘要</th>
-                <th scope="col" className="px-4 py-3 border-x">項目 / 勘定科目</th>
-                <th scope="col" className="px-4 py-3 border-x text-right">金額</th>
-                <th scope="col" className="px-4 py-3 border-x">支払方法</th>
-                <th scope="col" className="px-4 py-3 border-x text-center">操作</th>
+                <th scope="col" className="px-2 py-1 border-x text-center whitespace-nowrap">区分</th>
+                <th scope="col" className="px-2 py-1 border-x text-center whitespace-nowrap">操作</th>
+                <th scope="col" className="px-2 py-1 border-x whitespace-nowrap">日付</th>
+                <th scope="col" className="px-2 py-1 border-x whitespace-nowrap">所属</th>
+                <th scope="col" className="px-2 py-1 border-x min-w-[100px]">納入者 / 摘要</th>
+                <th scope="col" className="px-2 py-1 border-x min-w-[120px]">項目 / 勘定科目</th>
+                <th scope="col" className="px-2 py-1 border-x text-right whitespace-nowrap">金額</th>
+                <th scope="col" className="px-2 py-1 border-x whitespace-nowrap">支払方法</th>
               </tr>
             </thead>
             <tbody>
@@ -119,59 +119,18 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   className={`border-b hover:bg-gray-50 transition-colors ${item.isCancelled ? 'bg-gray-100 opacity-60' : ''}`}
                 >
                   {/* 区分バッジ */}
-                  <td className="px-4 py-3 border-x text-center">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                  <td className="px-2 py-1 border-x text-center whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                       item.type === 'transaction' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {item.type === 'transaction' ? '入金' : '支出'}
                     </span>
                   </td>
 
-                  {/* 日付 */}
-                  <td className={`px-4 py-3 border-x font-medium ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                    {item.date}
-                  </td>
-
-                  {/* 所属 */}
-                  <td className={`px-4 py-3 border-x ${item.isCancelled ? 'line-through text-gray-400' : ''}`}>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                      item.organization === '道院' ? 'bg-blue-100 text-blue-800' :
-                      item.organization === 'スポ少' ? 'bg-emerald-100 text-emerald-800' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {item.organization}
-                    </span>
-                  </td>
-
-                  {/* 納入者 / 摘要 */}
-                  <td className={`px-4 py-3 border-x ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>
-                    {item.type === 'transaction' && item.memberId
-                      ? memberName(item.memberId)
-                      : <span className="text-gray-300">―</span>}
-                  </td>
-
-                  {/* 項目 */}
-                  <td className={`px-4 py-3 border-x ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-600'}`}>
-                    {item.categoryOrItem}
-                  </td>
-
-                  {/* 金額 */}
-                  <td className={`px-4 py-3 border-x text-right font-semibold ${
-                    item.isCancelled ? 'line-through text-gray-400' :
-                    item.type === 'transaction' ? 'text-blue-600' : 'text-red-600'
-                  }`}>
-                    {item.type === 'transaction' ? '+' : '-'}{item.amount.toLocaleString()}円
-                  </td>
-
-                  {/* 支払方法 */}
-                  <td className={`px-4 py-3 border-x text-gray-500 ${item.isCancelled ? 'line-through text-gray-400' : ''}`}>
-                    {item.paymentMethod}
-                  </td>
-
                   {/* 操作 */}
-                  <td className="px-4 py-3 border-x text-center">
+                  <td className="px-2 py-1 border-x text-center whitespace-nowrap">
                     {item.isCancelled ? (
-                      <span className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-2 py-1 rounded">取消済</span>
+                      <span className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-1 py-0.5 rounded">取消済</span>
                     ) : (
                       <button
                         onClick={() => {
@@ -183,11 +142,52 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                             }
                           }
                         }}
-                        className="text-xs bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 font-medium py-1 px-3 rounded shadow-sm transition-colors"
+                        className="text-[10px] bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 font-medium py-1 px-2 rounded shadow-sm transition-colors"
                       >
                         取消
                       </button>
                     )}
+                  </td>
+
+                  {/* 日付 */}
+                  <td className={`px-2 py-1 border-x font-medium whitespace-nowrap ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                    {item.date}
+                  </td>
+
+                  {/* 所属 */}
+                  <td className={`px-2 py-1 border-x whitespace-nowrap ${item.isCancelled ? 'line-through text-gray-400' : ''}`}>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                      item.organization === '道院' ? 'bg-blue-100 text-blue-800' :
+                      item.organization === 'スポ少' ? 'bg-emerald-100 text-emerald-800' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {item.organization}
+                    </span>
+                  </td>
+
+                  {/* 納入者 / 摘要 */}
+                  <td className={`px-2 py-1 border-x ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>
+                    {item.type === 'transaction' && item.memberId
+                      ? memberName(item.memberId)
+                      : <span className="text-gray-300">―</span>}
+                  </td>
+
+                  {/* 項目 */}
+                  <td className={`px-2 py-1 border-x ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                    {item.categoryOrItem}
+                  </td>
+
+                  {/* 金額 */}
+                  <td className={`px-2 py-1 border-x text-right font-semibold whitespace-nowrap ${
+                    item.isCancelled ? 'line-through text-gray-400' :
+                    item.type === 'transaction' ? 'text-blue-600' : 'text-red-600'
+                  }`}>
+                    {item.type === 'transaction' ? '+' : '-'}{item.amount.toLocaleString()}円
+                  </td>
+
+                  {/* 支払方法 */}
+                  <td className={`px-2 py-1 border-x text-gray-500 whitespace-nowrap ${item.isCancelled ? 'line-through text-gray-400' : ''}`}>
+                    {item.paymentMethod}
                   </td>
                 </tr>
               ))}

@@ -16,11 +16,12 @@ interface ExpenseFormProps {
   memberships?: Member[];
   expenses?: Expense[];
   fiscalYear?: number;
+  onExpenseUpdate?: (id: string, newAmount: number) => void;
 }
 
 const PRESET_CATEGORIES = ['保険料', '交際費', '会場費', '備品代', '消耗品費', '通信費', '水道光熱費', 'その他'];
 
-export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [], fiscalYear }) => {
+export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [], fiscalYear, onExpenseUpdate }) => {
   // ── 入力フォーム state ──────────────────────────────────
   const [dateInput, setDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dateError, setDateError] = useState<string | null>(null);
@@ -76,7 +77,23 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
 
   const ExpenseTable = ({
     title, rows, total, accentClass
-  }: { title: string; rows: Expense[]; total: number; accentClass: string }) => (
+  }: { title: string; rows: Expense[]; total: number; accentClass: string }) => {
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editAmount, setEditAmount] = useState<number | ''>('');
+
+    const handleEditClick = (ex: Expense) => {
+      setEditingId(ex.id);
+      setEditAmount(ex.amount);
+    };
+
+    const handleSave = (ex: Expense) => {
+      if (editAmount !== '' && typeof editAmount === 'number' && editAmount !== ex.amount && onExpenseUpdate) {
+        onExpenseUpdate(ex.id, editAmount);
+      }
+      setEditingId(null);
+    };
+
+    return (
     <div className={`bg-white rounded-xl shadow-sm border ${accentClass} overflow-hidden`}>
       <div className={`flex items-center justify-between px-4 py-3 ${accentClass.replace('border-', 'bg-').replace('-300', '-50')}`}>
         <h3 className="font-bold text-base text-gray-800">{title}</h3>
@@ -108,14 +125,41 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
                 </td>
                 <td className="py-2 px-3 max-w-xs truncate text-gray-600" title={ex.description}>{ex.description}</td>
                 <td className="py-2 px-3 text-gray-500">{ex.paymentMethod}</td>
-                <td className="py-2 px-3 text-right font-mono font-medium text-rose-700">¥{ex.amount.toLocaleString()}</td>
+                <td className="py-2 px-3 text-right font-mono font-medium text-rose-700">
+                  {editingId === ex.id ? (
+                    <div className="flex items-center justify-end space-x-1">
+                      <input
+                        type="number"
+                        className="w-20 px-1 py-0.5 border rounded text-right text-sm"
+                        value={editAmount}
+                        onChange={e => setEditAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                        onBlur={() => handleSave(ex)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSave(ex);
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        autoFocus
+                      />
+                      <span className="text-gray-500 text-xs">円</span>
+                    </div>
+                  ) : (
+                    <div 
+                      className="cursor-pointer hover:bg-rose-50 px-1 rounded inline-block transition-colors"
+                      onClick={() => handleEditClick(ex)}
+                      title="クリックして修正"
+                    >
+                      ¥{ex.amount.toLocaleString()}
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-8">

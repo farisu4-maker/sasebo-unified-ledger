@@ -9,6 +9,7 @@ interface AuditReportProps {
   expenses: Expense[];
   budgets: Budget[];
   fiscalYear: number;
+  onTransactionUpdate?: (id: string, newAmount: number) => void;
 }
 
 type ReportTab = 'report' | 'matrix';
@@ -18,7 +19,8 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   transactions,
   expenses,
   budgets,
-  fiscalYear
+  fiscalYear,
+  onTransactionUpdate
 }) => {
   const [reportTab, setReportTab] = useState<ReportTab>('report');
   const [printMode, setPrintMode] = useState<'all' | 'doin' | 'spo'>('all');
@@ -257,13 +259,13 @@ export const AuditReport: React.FC<AuditReportProps> = ({
       {reportTab === 'matrix' && (
         <div className="space-y-16">
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-4 no-print">
               <h3 className="text-lg font-bold text-gray-800">
                 令和{fiscalYear - 2018}年度 月別納入チェック表
               </h3>
             </div>
             
-            <div className="print-content space-y-12">
+            <div className="print-content space-y-12 print:hidden no-print">
               {(printMode === 'all' || printMode === 'doin') && (
                 <div>
                   <h4 className="text-md font-bold text-gray-800 mb-2 border-l-4 border-blue-600 pl-2">月別納入チェック表（少林寺拳法佐世保道院）</h4>
@@ -272,6 +274,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                     transactions={transactions}
                     fiscalYear={fiscalYear}
                     org="道院"
+                    onTransactionUpdate={onTransactionUpdate}
                   />
                 </div>
               )}
@@ -283,6 +286,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                     transactions={transactions}
                     fiscalYear={fiscalYear}
                     org="スポ少"
+                    onTransactionUpdate={onTransactionUpdate}
                   />
                 </div>
               )}
@@ -297,7 +301,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
             const gTotal = filteredRows.reduce((s, r) => s + r.total, 0);
 
             return (
-              <section key={org} className={`pt-8 print:pt-0 ${printMode === 'all' || org === '道院' ? 'print:break-before-page break-before-page' : ''} ${org === 'スポ少' && printMode === 'all' ? 'print:break-before-page break-before-page mt-12 print:mt-0' : ''}`}>
+              <section key={org} className={`pt-8 print:pt-0 ${org === 'スポ少' && printMode === 'all' ? 'print:break-before-page break-before-page mt-12 print:mt-0' : ''}`}>
                 <div className="text-center mb-6">
                   <h1 className="text-xl font-bold border-b-2 border-gray-800 pb-2 inline-block">
                     令和{(fiscalYear - 2018)}年度 個人別年間納入明細表（{org === '道院' ? '少林寺拳法佐世保道院' : '佐世保西スポーツ少年団'}）
@@ -310,7 +314,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                   <table className="min-w-full text-center text-[11px] md:text-xs border border-gray-600">
                     <thead className="bg-gray-100 border-b border-gray-600 font-bold">
                       <tr>
-                        <th className="border-r border-gray-600 py-1 px-2 w-32 text-left">氏名</th>
+                        <th className="border-r border-gray-600 py-1 px-2 w-32 text-left whitespace-nowrap">氏名</th>
                         <th className="border-r border-gray-600 py-1 px-1 w-12 text-xs">所属</th>
                         {months.map(m => (
                           <th key={m} className="border-r border-gray-600 py-1 px-1">{m}月</th>
@@ -321,7 +325,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
                     <tbody>
                       {filteredRows.map((row, idx) => (
                         <tr key={row.key} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} print:break-inside-avoid`}>
-                          <td className="border border-gray-600 py-0.5 px-2 text-left font-medium">
+                          <td className="border border-gray-600 py-0.5 px-2 text-left font-medium whitespace-nowrap">
                             {row.name}
                             {row.isBoth && <span className="ml-1 inline-block text-[9px] font-normal text-purple-600">兼</span>}
                           </td>

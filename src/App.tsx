@@ -252,6 +252,39 @@ function App() {
   }, [showNotification, showSyncError]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  更新ハンドラ（金額・対象月などのインライン編集用）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handleUpdateTransaction = useCallback(async (updated: Transaction) => {
+    // オプティミスティック更新
+    setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => t.id === updated.id ? updated : t));
+    const ok = await GoogleSheetsService.updateTransaction(updated);
+    if (ok) {
+      showNotification(`入金履歴（ID: ${updated.id}）を更新しました。`);
+    } else {
+      showSyncError(`更新に失敗しました（ID: ${updated.id}）。`);
+      try {
+        const refreshed = await GoogleSheetsService.fetchTransactions();
+        if (refreshed.length > 0) setTransactions(refreshed);
+      } catch { /* スキップ */ }
+    }
+  }, [showNotification, showSyncError]);
+
+  const handleUpdateExpense = useCallback(async (updated: Expense) => {
+    setExpenses((prev: Expense[]) => prev.map((e: Expense) => e.id === updated.id ? updated : e));
+    const ok = await GoogleSheetsService.updateExpense(updated);
+    if (ok) {
+      showNotification(`支出履歴（ID: ${updated.id}）を更新しました。`);
+    } else {
+      showSyncError(`更新に失敗しました（ID: ${updated.id}）。`);
+      try {
+        const refreshed = await GoogleSheetsService.fetchExpenses();
+        if (refreshed.length > 0) setExpenses(refreshed);
+      } catch { /* スキップ */ }
+    }
+  }, [showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  メンバー更新ハンドラ（加入日・脱退日・ステータス）
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -339,8 +372,11 @@ function App() {
           </div>
           <MembersList
             members={displayMembers}
+            transactions={transactions}
+            fiscalYear={activeFiscalYear}
             onSelectMember={setSelectedMember}
             onMemberUpdate={handleMemberUpdate}
+            onTransactionUpdate={handleUpdateTransaction}
           />
         </div>
       )}
@@ -350,6 +386,7 @@ function App() {
           onSubmit={handleExpenseSubmit}
           memberships={members}
           expenses={expenses}
+          onExpenseUpdate={handleUpdateExpense}
           fiscalYear={activeFiscalYear}
         />
       )}
@@ -361,6 +398,7 @@ function App() {
           expenses={expenses}
           budgets={budgets}
           fiscalYear={activeFiscalYear}
+          onTransactionUpdate={handleUpdateTransaction}
         />
       )}
 
