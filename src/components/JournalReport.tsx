@@ -6,7 +6,7 @@ interface JournalReportProps {
   transactions: Transaction[];
   expenses: Expense[];
   fiscalYear: number;
-  activeOrgContext: '道院' | 'スポ少';
+  activeOrgContext: string;
 }
 
 export const JournalReport: React.FC<JournalReportProps> = ({
@@ -20,13 +20,15 @@ export const JournalReport: React.FC<JournalReportProps> = ({
     const startDate = `${fiscalYear}-04-01`;
     const endDate = `${fiscalYear + 1}-03-31`;
 
-    const filteredTransactions = transactions.filter(
-      t => !t.isCancelled && t.date >= startDate && t.date <= endDate && t.organization === activeOrgContext
-    );
+    const filteredTransactions = transactions.filter(t => {
+      const matchOrg = activeOrgContext === '統合' ? true : (t.organization === activeOrgContext || t.organization === '両方');
+      return !t.isCancelled && t.date >= startDate && t.date <= endDate && matchOrg;
+    });
 
-    const filteredExpenses = expenses.filter(
-      e => e.date >= startDate && e.date <= endDate && e.organization === activeOrgContext
-    );
+    const filteredExpenses = expenses.filter(e => {
+      const matchOrg = activeOrgContext === '統合' ? true : (e.organization === activeOrgContext || e.organization === '両方');
+      return e.date >= startDate && e.date <= endDate && matchOrg;
+    });
 
     // 収入グループ化
     const iGroups: Record<string, Transaction[]> = {};
