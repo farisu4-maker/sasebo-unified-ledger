@@ -48,9 +48,11 @@ export const MembersList: React.FC<MembersListProps> = ({
   const [editOrg, setEditOrg] = useState<Organization>('道院');
   const [dateError, setDateError] = useState<string | null>(null);
 
+  type SortConfig = { key: 'date' | 'targetMonth' | 'item' | 'amount'; direction: 'asc' | 'desc' } | null;
   const [historyModalMember, setHistoryModalMember] = useState<Member | null>(null);
   const [txEditingId, setTxEditingId] = useState<string | null>(null);
   const [txEditAmount, setTxEditAmount] = useState<number | ''>('');
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const startEdit = (member: Member) => {
     setEditingId(member.id);
@@ -100,9 +102,30 @@ export const MembersList: React.FC<MembersListProps> = ({
 
   const fyStart = `${fiscalYear}-04-01`;
   const fyEnd = `${fiscalYear + 1}-03-31`;
-  const memberTransactions = historyModalMember
-    ? transactions.filter(t => t.memberId === historyModalMember.id && !t.isCancelled && t.date >= fyStart && t.date <= fyEnd).sort((a,b) => b.date.localeCompare(a.date))
+  const baseTransactions = historyModalMember
+    ? transactions.filter(t => t.memberId === historyModalMember.id && !t.isCancelled && t.date >= fyStart && t.date <= fyEnd)
     : [];
+
+  const memberTransactions = [...baseTransactions].sort((a, b) => {
+    if (sortConfig) {
+      const aVal = a[sortConfig.key] || '';
+      const bVal = b[sortConfig.key] || '';
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    }
+    // デフォルト: 処理日の降順、対象月の昇順
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return (a.targetMonth || '').localeCompare(b.targetMonth || '');
+  });
+
+  const handleSort = (key: 'date' | 'targetMonth' | 'item' | 'amount') => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const handleTxEditClick = (tx: Transaction) => {
     setTxEditingId(tx.id);
@@ -347,10 +370,18 @@ export const MembersList: React.FC<MembersListProps> = ({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      <th className="py-2 px-3 text-left">日付</th>
-                      <th className="py-2 px-3 text-left">対象月</th>
-                      <th className="py-2 px-3 text-left">費目</th>
-                      <th className="py-2 px-3 text-right">金額</th>
+                      <th className="py-2 px-3 text-left cursor-pointer hover:bg-gray-100 transition-colors select-none" onClick={() => handleSort('date')}>
+                        日付 {sortConfig?.key === 'date' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th className="py-2 px-3 text-left cursor-pointer hover:bg-gray-100 transition-colors select-none" onClick={() => handleSort('targetMonth')}>
+                        対象月 {sortConfig?.key === 'targetMonth' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th className="py-2 px-3 text-left cursor-pointer hover:bg-gray-100 transition-colors select-none" onClick={() => handleSort('item')}>
+                        費目 {sortConfig?.key === 'item' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th className="py-2 px-3 text-right cursor-pointer hover:bg-gray-100 transition-colors select-none" onClick={() => handleSort('amount')}>
+                        金額 {sortConfig?.key === 'amount' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

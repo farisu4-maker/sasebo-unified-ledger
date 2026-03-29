@@ -5,6 +5,7 @@ import { MembersList } from './components/MembersList';
 import { PaymentForm } from './components/PaymentForm';
 import { ExpenseForm } from './components/ExpenseForm';
 import { AuditReport } from './components/AuditReport';
+import { JournalReport } from './components/JournalReport';
 import { HistoryList } from './components/HistoryList';
 import { Settings } from './components/Settings';
 import { sampleFeeItems } from './mocks/sampleData';
@@ -144,7 +145,7 @@ function App() {
     const now = new Date();
     const targetMember = members.find((m: Member) => m.id === data.memberId);
     const newTx: Transaction = {
-      id: `T${Date.now()}`,
+      id: `T${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       date: data.date,
       memberId: data.memberId,
       organization: (data.organization as '道院' | 'スポ少') ||
@@ -399,6 +400,15 @@ function App() {
           budgets={budgets}
           fiscalYear={activeFiscalYear}
           onTransactionUpdate={handleUpdateTransaction}
+        />
+      )}
+
+      {activeTab === 'journal' && (
+        <JournalReport
+          transactions={transactions}
+          expenses={expenses}
+          fiscalYear={activeFiscalYear}
+          activeOrgContext={activeOrgContext}
         />
       )}
 

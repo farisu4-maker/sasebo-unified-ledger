@@ -56,6 +56,7 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'members', label: '拳士・入金', icon: <Users size={20} /> },
     { id: 'expenses', label: '支出記録', icon: <Receipt size={20} /> },
     { id: 'reports', label: '監査・レポート', icon: <FileText size={20} /> },
+    { id: 'journal', label: '印刷（仕訳帳）', icon: <FileText size={20} /> },
     { id: 'history', label: '履歴一覧・取消', icon: <FileText size={20} /> }, // History added
     { id: 'settings', label: 'システム設定', icon: <SettingsIcon size={20} /> },
   ];

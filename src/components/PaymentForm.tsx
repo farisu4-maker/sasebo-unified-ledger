@@ -15,10 +15,32 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
   const [paymentDate, setPaymentDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
-  const [targetMonth, setTargetMonth] = useState<string>(() => {
+  const initialMonth = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+  })();
+  const [targetMonths, setTargetMonths] = useState<string[]>([initialMonth]);
+
+  const quickMonths = React.useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const fy = currentMonth < 4 ? currentYear - 1 : currentYear;
+    
+    const months = [];
+    for (let i = 4; i <= 15; i++) {
+      const year = i > 12 ? fy + 1 : fy;
+      const mon = i > 12 ? i - 12 : i;
+      months.push(`${year}-${String(mon).padStart(2, '0')}`);
+    }
+    return months;
+  }, []);
+
+  const toggleMonth = (m: string) => {
+    setTargetMonths(prev => 
+      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort()
+    );
+  };
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [selectedOrg] = useState<string>(
     member.organization === '両方' ? '道院' : member.organization
@@ -89,7 +111,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedItem || amount <= 0) return;
+    if (!selectedItem || amount <= 0 || targetMonths.length === 0) return;
     
     // 過納・重複チェックロジック
     if (selectedItem === '信徒香資（月）' || selectedItem === 'スポ少会費（月）') {
@@ -98,13 +120,15 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
           ? (member.role ? 1500 : (member.organization === '両方' ? 2500 : feeItems.find(f => f.name === '信徒香資（月）')?.amount || 3000))
           : (member.organization === '両方' ? 1000 : feeItems.find(f => f.name === 'スポ少会費（月）')?.amount || 1500);
           
-      const pastTotal = transactions
-        .filter(t => !t.isCancelled && t.memberId === member.id && t.item === selectedItem && t.targetMonth === targetMonth)
-        .reduce((sum, t) => sum + t.amount, 0);
-        
-      if (pastTotal + amount > targetAmount) {
-        alert(`${targetMonth}月の調定額（${targetAmount}円）を超過しています。\n既に${pastTotal}円が納入済みです。重複入力または過納になっていないか確認してください。`);
-        return;
+      for (const tMonth of targetMonths) {
+        const pastTotal = transactions
+          .filter(t => !t.isCancelled && t.memberId === member.id && t.item === selectedItem && t.targetMonth === tMonth)
+          .reduce((sum, t) => sum + t.amount, 0);
+          
+        if (pastTotal + amount > targetAmount) {
+          alert(`【${tMonth}】の調定額（${targetAmount}円）を超過しています。\n既に${pastTotal}円が納入済みです。重複入力または過納になっていないか確認してください。`);
+          return;
+        }
       }
     }
     
@@ -112,14 +136,16 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
       ? submitTargetRef.current 
       : member.organization === '両方' ? selectedOrg : member.organization;
 
-    onSubmit({
-      memberId: member.id,
-      item: selectedItem,
-      amount,
-      paymentMethod,
-      organization: targetOrg,
-      date: paymentDate,
-      targetMonth
+    targetMonths.forEach(month => {
+      onSubmit({
+        memberId: member.id,
+        item: selectedItem,
+        amount,
+        paymentMethod,
+        organization: targetOrg,
+        date: paymentDate,
+        targetMonth: month
+      });
     });
   };
 
@@ -159,7 +185,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">入金処理日</label>
                 <input 
@@ -170,15 +196,54 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">対象月</label>
-                <input 
-                  type="month" 
-                  value={targetMonth}
-                  onChange={(e) => setTargetMonth(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
+              <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-2">対象月（ポンポンとタップして複数選択可）</label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {quickMonths.map(m => {
+                    const isSelected = targetMonths.includes(m);
+                    const [, mon] = m.split('-');
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => toggleMonth(m)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-transform active:scale-95 ${
+                          isSelected 
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 hover:border-gray-400 shadow-sm'
+                        }`}
+                      >
+                        {parseInt(mon, 10)}月
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                  <span className="text-xs text-gray-500">その他の月:</span>
+                  <input 
+                    type="month" 
+                    id="custom-month"
+                    className="border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const val = (document.getElementById('custom-month') as HTMLInputElement).value;
+                      if (val && !targetMonths.includes(val)) {
+                        setTargetMonths(prev => [...prev, val].sort());
+                      }
+                    }}
+                    className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1.5 px-3 rounded-md transition-colors"
+                  >
+                    追加
+                  </button>
+                </div>
+                {targetMonths.length === 0 && (
+                  <p className="text-red-500 text-xs mt-2 font-bold">※対象月を1つ以上選択してください。</p>
+                )}
+                {targetMonths.length > 0 && (
+                  <p className="text-indigo-600 text-xs mt-2 font-medium">※選択した月の数（{targetMonths.length}ヶ月）だけ、独立した入金データが作成されます。</p>
+                )}
               </div>
             </div>
 
