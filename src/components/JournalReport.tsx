@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Transaction, Expense } from '../types';
 import { Printer } from 'lucide-react';
 
@@ -15,6 +15,10 @@ export const JournalReport: React.FC<JournalReportProps> = ({
   fiscalYear,
   activeOrgContext,
 }) => {
+  const [printMode, setPrintMode] = useState<'all' | 'doin' | 'spo'>(
+    activeOrgContext === '道院' ? 'doin' : activeOrgContext === 'スポ少' ? 'spo' : 'all'
+  );
+
   const { incomeGroups, expenseGroups, totalIncome, totalExpense } = useMemo(() => {
     // 期間計算 (4/1 ~ 翌年3/31)
     const startDate = `${fiscalYear}-04-01`;
@@ -22,13 +26,19 @@ export const JournalReport: React.FC<JournalReportProps> = ({
 
     const filteredTransactions = transactions.filter(t => {
       const orgStr = String(t.organization);
-      const matchOrg = activeOrgContext === '統合' ? true : (orgStr === activeOrgContext || orgStr === '両方');
+      const matchOrg = 
+        printMode === 'all' ? true : 
+        printMode === 'doin' ? (orgStr === '道院' || orgStr === '両方') : 
+        (orgStr === 'スポ少' || orgStr === '両方');
       return !t.isCancelled && t.date >= startDate && t.date <= endDate && matchOrg;
     });
 
     const filteredExpenses = expenses.filter(e => {
       const orgStr = String(e.organization);
-      const matchOrg = activeOrgContext === '統合' ? true : (orgStr === activeOrgContext || orgStr === '両方');
+      const matchOrg = 
+        printMode === 'all' ? true : 
+        printMode === 'doin' ? (orgStr === '道院' || orgStr === '両方') : 
+        (orgStr === 'スポ少' || orgStr === '両方');
       return e.date >= startDate && e.date <= endDate && matchOrg;
     });
 
@@ -58,7 +68,7 @@ export const JournalReport: React.FC<JournalReportProps> = ({
       totalIncome: tIncome,
       totalExpense: tExpense
     };
-  }, [transactions, expenses, fiscalYear, activeOrgContext]);
+  }, [transactions, expenses, fiscalYear, printMode]);
 
   const handlePrint = () => {
     window.print();
@@ -66,15 +76,31 @@ export const JournalReport: React.FC<JournalReportProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md max-w-5xl mx-auto p-4 md:p-8">
-      <div className="flex justify-between items-center mb-6 print:hidden">
+      {/* ── コントロールパネル ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-200 mb-6 pb-4 print:hidden gap-4">
         <h2 className="text-2xl font-bold text-gray-800">仕訳帳 (科目別明細表)</h2>
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition-colors"
-        >
-          <Printer size={18} />
-          <span>印刷する</span>
-        </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-md border border-gray-200">
+            <span className="text-sm font-bold text-gray-700">表示対象:</span>
+            <select
+              value={printMode}
+              onChange={(e) => setPrintMode(e.target.value as 'all' | 'doin' | 'spo')}
+              className="bg-transparent border-none text-sm font-medium text-gray-900 focus:ring-0 py-0 pl-1 pr-6 cursor-pointer outline-none"
+            >
+              <option value="all">統合版 (道院・スポ少両方)</option>
+              <option value="doin">道院 のみ</option>
+              <option value="spo">スポ少 のみ</option>
+            </select>
+          </div>
+          
+          <button
+            onClick={handlePrint}
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center justify-center"
+          >
+            <Printer size={18} className="mr-2" />
+            <span>印刷する</span>
+          </button>
+        </div>
       </div>
 
       <div className="print-area">
@@ -85,12 +111,16 @@ export const JournalReport: React.FC<JournalReportProps> = ({
             }
             .print-area, .print-area * {
               visibility: visible;
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .print-area {
               position: absolute;
               left: 0;
               top: 0;
               width: 100%;
+              padding: 0;
             }
             .page-break {
               page-break-before: always;
@@ -103,7 +133,9 @@ export const JournalReport: React.FC<JournalReportProps> = ({
         `}</style>
         
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2">{activeOrgContext} 仕訳帳</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            {printMode === 'all' ? '統合版' : printMode === 'doin' ? '道院' : 'スポ少'} 仕訳帳
+          </h1>
           <p className="text-gray-600 text-lg">令和{fiscalYear - 2018}年度 ({fiscalYear}年4月 〜 {fiscalYear + 1}年3月)</p>
         </div>
 
