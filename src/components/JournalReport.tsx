@@ -21,12 +21,14 @@ export const JournalReport: React.FC<JournalReportProps> = ({
     const endDate = `${fiscalYear + 1}-03-31`;
 
     const filteredTransactions = transactions.filter(t => {
-      const matchOrg = activeOrgContext === '統合' ? true : (t.organization === activeOrgContext || t.organization === '両方');
+      const orgStr = String(t.organization);
+      const matchOrg = activeOrgContext === '統合' ? true : (orgStr === activeOrgContext || orgStr === '両方');
       return !t.isCancelled && t.date >= startDate && t.date <= endDate && matchOrg;
     });
 
     const filteredExpenses = expenses.filter(e => {
-      const matchOrg = activeOrgContext === '統合' ? true : (e.organization === activeOrgContext || e.organization === '両方');
+      const orgStr = String(e.organization);
+      const matchOrg = activeOrgContext === '統合' ? true : (orgStr === activeOrgContext || orgStr === '両方');
       return e.date >= startDate && e.date <= endDate && matchOrg;
     });
 
