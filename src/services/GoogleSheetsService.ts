@@ -198,6 +198,46 @@ export class GoogleSheetsService {
     }
   }
 
+  /**
+   * メンバーを新規追加します（M_Membersに新しい行をAPPEND）
+   */
+  static async appendMember(member: Member): Promise<boolean> {
+    try {
+      const exists = await this.checkExists('M_Members!A:A', member.id);
+      if (exists) {
+        console.log(`Member ${member.id} already exists`);
+        return true;
+      }
+
+      const values = [[
+        member.id,
+        member.name,
+        member.kana,
+        member.birthDate,
+        member.joinDate,
+        member.organization,
+        member.representativeId || '',
+        member.status,
+        member.leaveDate || '',
+        member.exemptionFlag ? 'TRUE' : 'FALSE',
+        member.notes || '',
+        member.yomigana || '',
+        member.role || '',
+      ]];
+
+      const res = await this.fetchApi('M_Members!A:M:append?valueInputOption=USER_ENTERED', {
+        method: 'POST',
+        body: JSON.stringify({ values })
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    } catch (e) {
+      console.error('Failed to append member', e);
+      return false;
+    }
+  }
+
   // ============================================================
   //  M_Budgets
   //  A: 組織, B: 勘定科目, C: 年間予算額, D: 期首繰越,

@@ -307,6 +307,20 @@ function App() {
     }
   }, [showNotification, showSyncError]);
 
+  const handleMemberAdd = useCallback(async (newMember: Member) => {
+    // 1. UI 即時反映
+    setMembers((prev: Member[]) => [newMember, ...prev]);
+    // 2. Sheets へ書き込み
+    const ok = await GoogleSheetsService.appendMember(newMember);
+    if (ok) {
+      showNotification(`${newMember.name} を新規登録しました。`);
+    } else {
+      // ロールバック: 追加を取り消す
+      showSyncError(`${newMember.name} の登録に失敗しました。通信環境を確認してください。`);
+      setMembers((prev: Member[]) => prev.filter(m => m.id !== newMember.id));
+    }
+  }, [showNotification, showSyncError]);
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  表示用メンバー（組織コンテキストフィルタ）
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -377,6 +391,7 @@ function App() {
             fiscalYear={activeFiscalYear}
             onSelectMember={setSelectedMember}
             onMemberUpdate={handleMemberUpdate}
+            onMemberAdd={handleMemberAdd}
             onTransactionUpdate={handleUpdateTransaction}
           />
         </div>
