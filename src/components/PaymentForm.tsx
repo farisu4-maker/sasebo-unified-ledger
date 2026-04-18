@@ -202,7 +202,6 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                   {Array.from(new Set([...quickMonths, ...targetMonths])).sort().map(m => {
                     const isSelected = targetMonths.includes(m);
                     const [year, mon] = m.split('-');
-                    const isCustom = !quickMonths.includes(m);
                     return (
                       <button
                         key={m}
@@ -214,7 +213,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                             : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 hover:border-gray-400 shadow-sm'
                         }`}
                       >
-                        {isCustom ? `${year}年${parseInt(mon, 10)}月` : `${parseInt(mon, 10)}月`}
+                        {`${year}年${parseInt(mon, 10)}月`}
                       </button>
                     );
                   })}
