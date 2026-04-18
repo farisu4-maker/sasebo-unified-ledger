@@ -269,6 +269,8 @@ export const MembersList: React.FC<MembersListProps> = ({
           .printable-members { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none; box-shadow: none; }
           .no-print { display: none !important; }
           @page { size: A4 landscape; margin: 10mm; }
+          table { width: 100% !important; table-layout: fixed; font-size: 11px !important; }
+          th, td { word-wrap: break-word; white-space: normal !important; padding: 4px !important; }
         }
       `}</style>
 
@@ -329,11 +331,11 @@ export const MembersList: React.FC<MembersListProps> = ({
 
                           {/* アクション */}
                           <td className="px-3 py-2 no-print align-middle">
-                            <div className="flex flex-wrap gap-1.5 justify-center">
+                            <div className="flex flex-wrap gap-2 justify-center">
                               {isActive && (
                                 <button
                                   onClick={() => onSelectMember(member)}
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1 px-2.5 rounded shadow-sm transition-colors text-xs flex-1 text-center"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded shadow-sm transition-colors text-sm flex-1 text-center min-w-[60px]"
                                   title="入金登録"
                                 >
                                   入金
@@ -341,7 +343,7 @@ export const MembersList: React.FC<MembersListProps> = ({
                               )}
                               <button
                                 onClick={() => setHistoryModalMember(member)}
-                                className={`${isActive ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-500 hover:bg-emerald-600'} text-white font-medium py-1 px-2.5 rounded shadow-sm transition-colors text-xs flex-1 text-center`}
+                                className={`${isActive ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-500 hover:bg-emerald-600'} text-white font-medium py-2 px-3 rounded shadow-sm transition-colors text-sm flex-1 text-center min-w-[60px]`}
                                 title="入金履歴確認"
                               >
                                 履歴
@@ -349,10 +351,10 @@ export const MembersList: React.FC<MembersListProps> = ({
                               
                               <button
                                 onClick={() => handleOpenEditModal(member)}
-                                className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded shadow-sm transition-colors flex-none"
+                                className="bg-amber-500 hover:bg-amber-600 text-white p-2 rounded shadow-sm transition-colors flex-none"
                                 title="編集"
                               >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               </button>
@@ -360,10 +362,10 @@ export const MembersList: React.FC<MembersListProps> = ({
                               {isActive && (
                                 <button
                                   onClick={() => handleDeleteMember(member)}
-                                  className="bg-rose-500 hover:bg-rose-600 text-white p-1.5 rounded shadow-sm transition-colors flex-none"
+                                  className="bg-rose-500 hover:bg-rose-600 text-white p-2 rounded shadow-sm transition-colors flex-none"
                                   title="退会処理（削除）"
                                 >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                 </button>

@@ -48,6 +48,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
     paymentMethod: string;
     isCancelled: boolean;
     memberId?: string;
+    targetMonth?: string;
   };
 
   const historyData: HistoryItem[] = [
@@ -61,6 +62,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
       paymentMethod: t.paymentMethod,
       isCancelled: !!t.isCancelled,
       memberId: t.memberId,
+      targetMonth: t.targetMonth,
     }))),
     ...(currentExpenses.map(e => ({
       id: e.id,
@@ -105,6 +107,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                 <th scope="col" className="px-2 py-1 border-x text-center whitespace-nowrap">区分</th>
                 <th scope="col" className="px-2 py-1 border-x text-center whitespace-nowrap">操作</th>
                 <th scope="col" className="px-2 py-1 border-x whitespace-nowrap">日付</th>
+                <th scope="col" className="px-2 py-1 border-x text-center whitespace-nowrap">対象月</th>
                 <th scope="col" className="px-2 py-1 border-x whitespace-nowrap">所属</th>
                 <th scope="col" className="px-2 py-1 border-x min-w-[100px]">納入者 / 摘要</th>
                 <th scope="col" className="px-2 py-1 border-x min-w-[120px]">項目 / 勘定科目</th>
@@ -152,6 +155,11 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   {/* 日付 */}
                   <td className={`px-2 py-1 border-x font-medium whitespace-nowrap ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                     {item.date}
+                  </td>
+
+                  {/* 対象月 */}
+                  <td className={`px-2 py-1 border-x text-center font-medium whitespace-nowrap ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                    {item.type === 'transaction' && item.targetMonth ? item.targetMonth : <span className="text-gray-300">―</span>}
                   </td>
 
                   {/* 所属 */}

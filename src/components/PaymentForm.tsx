@@ -199,9 +199,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
                 <label className="block text-sm font-medium text-gray-700 mb-2">対象月（ポンポンとタップして複数選択可）</label>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {quickMonths.map(m => {
+                  {Array.from(new Set([...quickMonths, ...targetMonths])).sort().map(m => {
                     const isSelected = targetMonths.includes(m);
-                    const [, mon] = m.split('-');
+                    const [year, mon] = m.split('-');
+                    const isCustom = !quickMonths.includes(m);
                     return (
                       <button
                         key={m}
@@ -213,7 +214,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                             : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 hover:border-gray-400 shadow-sm'
                         }`}
                       >
-                        {parseInt(mon, 10)}月
+                        {isCustom ? `${year}年${parseInt(mon, 10)}月` : `${parseInt(mon, 10)}月`}
                       </button>
                     );
                   })}
