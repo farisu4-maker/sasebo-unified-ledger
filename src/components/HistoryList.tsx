@@ -49,6 +49,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
     isCancelled: boolean;
     memberId?: string;
     targetMonth?: string;
+    receiptUrl?: string;
   };
 
   const historyData: HistoryItem[] = [
@@ -63,6 +64,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
       isCancelled: !!t.isCancelled,
       memberId: t.memberId,
       targetMonth: t.targetMonth,
+      receiptUrl: t.receiptUrl,
     }))),
     ...(currentExpenses.map(e => ({
       id: e.id,
@@ -73,6 +75,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
       amount: e.amount,
       paymentMethod: e.paymentMethod,
       isCancelled: !!e.isCancelled,
+      receiptUrl: e.receiptUrl,
     })))
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -132,24 +135,37 @@ export const HistoryList: React.FC<HistoryListProps> = ({
 
                   {/* 操作 */}
                   <td className="px-2 py-1 border-x text-center whitespace-nowrap">
-                    {item.isCancelled ? (
-                      <span className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-1 py-0.5 rounded">取消済</span>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (window.confirm('この履歴を取消（論理削除）しますか？金額の集計から除外されます。')) {
-                            if (item.type === 'transaction') {
-                              onCancelTransaction(item.id);
-                            } else {
-                              onCancelExpense(item.id);
+                    <div className="flex items-center justify-center gap-1">
+                      {item.receiptUrl && (
+                        <a
+                          href={item.receiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 font-medium py-1 px-2 rounded shadow-sm transition-colors flex items-center justify-center"
+                          title="領収書を表示"
+                        >
+                          📸
+                        </a>
+                      )}
+                      {item.isCancelled ? (
+                        <span className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-1 py-0.5 rounded">取消済</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('この履歴を取消（論理削除）しますか？金額の集計から除外されます。')) {
+                              if (item.type === 'transaction') {
+                                onCancelTransaction(item.id);
+                              } else {
+                                onCancelExpense(item.id);
+                              }
                             }
-                          }
-                        }}
-                        className="text-[10px] bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 font-medium py-1 px-2 rounded shadow-sm transition-colors"
-                      >
-                        取消
-                      </button>
-                    )}
+                          }}
+                          className="text-[10px] bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 font-medium py-1 px-2 rounded shadow-sm transition-colors"
+                        >
+                          取消
+                        </button>
+                      )}
+                    </div>
                   </td>
 
                   {/* 日付 */}

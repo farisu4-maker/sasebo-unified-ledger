@@ -38,6 +38,7 @@ export interface Transaction {
   item: string;
   amount: number;
   paymentMethod: string;
+  receiptUrl?: string;
   enteredById: string;
   timestamp: string;
   isCancelled?: boolean; // 取消フラグ（論理削除）

@@ -269,18 +269,18 @@ export class GoogleSheetsService {
   // ============================================================
   //  T_Transactions
   //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
-  //  F: 費目, G: 金額, H: 支払方法, I: 入力者ID,
-  //  J: 取消フラグ, K: 年度, L: 対象月(YYYY-MM)
+  //  F: 費目, G: 金額, H: 支払方法, I: 領収書URL, J: 入力者ID,
+  //  K: 取消フラグ, L: 年度, M: 対象月(YYYY-MM)
   // ============================================================
 
   static async fetchTransactions(): Promise<Transaction[]> {
     try {
-      const res = await this.fetchApi('T_Transactions!A2:L');
+      const res = await this.fetchApi('T_Transactions!A2:M');
       const data = await res.json();
       if (!data.values) return [];
 
       return data.values.map((row: string[]) => {
-        const fiscalYear = this.parseNumber(row[10]) || new Date().getFullYear();
+        const fiscalYear = this.parseNumber(row[11]) || new Date().getFullYear();
         return {
           id: row[0],
           timestamp: this.standardizeDate(row[1], fiscalYear) || row[1],
@@ -290,10 +290,11 @@ export class GoogleSheetsService {
           item: row[5],
           amount: this.parseNumber(row[6]),
           paymentMethod: row[7],
-          enteredById: row[8],
-          isCancelled: row[9] === 'TRUE' || row[9] === 'true',
+          receiptUrl: row[8],
+          enteredById: row[9],
+          isCancelled: row[10] === 'TRUE' || row[10] === 'true',
           fiscalYear,
-          targetMonth: this.formatTargetMonth(row[11]) || undefined
+          targetMonth: this.formatTargetMonth(row[12]) || undefined
         };
       });
     } catch (e) {
@@ -322,13 +323,14 @@ export class GoogleSheetsService {
         tx.item,
         tx.amount,
         tx.paymentMethod,
+        tx.receiptUrl || '',
         tx.enteredById,
-        tx.isCancelled ? 'TRUE' : 'FALSE',      // J列
-        tx.fiscalYear || new Date().getFullYear(), // K列
-        tx.targetMonth || ''                       // L列: 対象月
+        tx.isCancelled ? 'TRUE' : 'FALSE',      // K列
+        tx.fiscalYear || new Date().getFullYear(), // L列
+        tx.targetMonth || ''                       // M列: 対象月
       ]];
 
-      const res = await this.fetchApi('T_Transactions!A:L:append?valueInputOption=USER_ENTERED', {
+      const res = await this.fetchApi('T_Transactions!A:M:append?valueInputOption=USER_ENTERED', {
         method: 'POST',
         body: JSON.stringify({ values })
       });
@@ -366,6 +368,7 @@ export class GoogleSheetsService {
         tx.item,
         tx.amount,
         tx.paymentMethod,
+        tx.receiptUrl || '',
         tx.enteredById,
         tx.isCancelled ? 'TRUE' : 'FALSE',
         tx.fiscalYear || new Date().getFullYear(),
@@ -373,7 +376,7 @@ export class GoogleSheetsService {
       ]];
 
       const updateRes = await this.batchUpdateValues([{
-        range: `T_Transactions!A${sheetRow}:L${sheetRow}`,
+        range: `T_Transactions!A${sheetRow}:M${sheetRow}`,
         values
       }]);
 
@@ -389,7 +392,7 @@ export class GoogleSheetsService {
    * J列（インデックス9）の取消フラグを TRUE に
    */
   static async cancelTransaction(id: string): Promise<boolean> {
-    return this.updateCancelFlag('T_Transactions!A:A', id, 9);
+    return this.updateCancelFlag('T_Transactions!A:A', id, 10);
   }
 
   // ============================================================
@@ -719,7 +722,7 @@ export class GoogleSheetsService {
           b.organization, b.category, b.amount, b.initialBalance || 0, b.finalBalance !== undefined ? b.finalBalance : '', b.year
       ]);
       const txData = data.transactions.map(t => [
-          t.id, t.timestamp, t.date, t.organization, t.memberId, t.item, t.amount, t.paymentMethod, t.enteredById,
+          t.id, t.timestamp, t.date, t.organization, t.memberId, t.item, t.amount, t.paymentMethod, t.receiptUrl || '', t.enteredById,
           t.isCancelled ? 'TRUE' : 'FALSE', t.fiscalYear || new Date().getFullYear(), t.targetMonth || ''
       ]);
       const expData = data.expenses.map(e => [
@@ -742,5 +745,34 @@ export class GoogleSheetsService {
       console.error('Failed to restore data', e);
       return false;
     }
+  }
+  static async uploadReceiptImage(base64Image: string, fileName: string): Promise<string> {
+    const uploadUrl = (import.meta as any).env.VITE_GAS_UPLOAD_URL;
+    if (!uploadUrl) {
+      throw new Error('VITE_GAS_UPLOAD_URL is not defined in environment variables (.env.local).');
+    }
+
+    const payload = {
+      imageBase64: base64Image,
+      filename: fileName,
+      folderName: 'Receipts'
+    };
+
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+      // GAS requires application/x-www-form-urlencoded or text/plain for simple CORS requests
+    });
+
+    if (!res.ok) {
+      throw new Error(`Upload failed with status ${res.status}`);
+    }
+
+    const responseData = await res.json();
+    if (responseData.status === 'error') {
+      throw new Error(responseData.message || 'Unknown upload error');
+    }
+    
+    return responseData.url;
   }
 }

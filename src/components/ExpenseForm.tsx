@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Expense, Member } from '../types';
 import { parseJapaneseDate } from '../utils/dateParser';
+import { GoogleSheetsService } from '../services/GoogleSheetsService';
 interface ExpenseFormSubmitData {
   date: string;
   organization: '道院' | 'スポ少';
@@ -31,13 +32,29 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
   const [amount, setAmount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('現金');
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [base64Image, setBase64Image] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setReceiptUrl(URL.createObjectURL(file));
+    if (file) {
+      setReceiptFile(file);
+      setReceiptUrl(URL.createObjectURL(file));
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBase64Image(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setReceiptFile(null);
+      setReceiptUrl(null);
+      setBase64Image(null);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
 
@@ -49,10 +66,28 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
     }
     setDateError(null);
 
-    onSubmit({ date: parsedDate, organization, category, description, amount: Number(amount), paymentMethod, receiptUrl });
-    setDescription('');
-    setAmount('');
-    setReceiptUrl(null);
+    setIsSubmitting(true);
+    let finalReceiptUrl: string | null = null;
+
+    try {
+      if (base64Image && receiptFile) {
+        finalReceiptUrl = await GoogleSheetsService.uploadReceiptImage(base64Image, receiptFile.name);
+      }
+
+      onSubmit({ date: parsedDate, organization, category, description, amount: Number(amount), paymentMethod, receiptUrl: finalReceiptUrl });
+      
+      setDescription('');
+      setAmount('');
+      setReceiptUrl(null);
+      setReceiptFile(null);
+      setBase64Image(null);
+      const fileInput = document.getElementById('receiptInput') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } catch (err: any) {
+      alert(`画像のアップロードに失敗しました: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── 支出一覧フィルタリング ────────────────────────────
@@ -236,16 +271,31 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">領収書画像（任意）</label>
-            <input type="file" accept="image/*" capture="environment" onChange={handleImageCapture}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100" />
+            <div className="flex flex-col gap-2">
+              <label htmlFor="receiptInput" className="cursor-pointer inline-flex items-center justify-center px-4 py-2 bg-rose-50 border border-rose-200 rounded-md text-rose-700 hover:bg-rose-100 transition-colors text-sm font-medium">
+                📸 領収書を撮影 / 添付
+              </label>
+              <input id="receiptInput" type="file" accept="image/*" capture="environment" onChange={handleImageCapture} className="hidden" />
+              {receiptFile && <span className="text-xs text-gray-500">{receiptFile.name}</span>}
+            </div>
             {receiptUrl && (
               <img src={receiptUrl} alt="領収書プレビュー" className="mt-2 h-24 object-cover rounded border border-gray-200" />
             )}
           </div>
 
-          <button type="submit"
-            className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors text-sm">
-            支出を登録する
+          <button type="submit" disabled={isSubmitting}
+            className={`w-full ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'} text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors text-sm flex justify-center items-center`}>
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                アップロード中...
+              </>
+            ) : (
+              '支出を登録する'
+            )}
           </button>
         </form>
       </div>
