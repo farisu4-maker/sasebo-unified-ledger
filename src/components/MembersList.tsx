@@ -491,12 +491,53 @@ export const MembersList: React.FC<MembersListProps> = ({
                   {/* 生年月日 */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">生年月日</label>
-                    <input
-                      type="date"
-                      value={editingMember.birthDate || ''}
-                      onChange={e => setEditingMember({...editingMember, birthDate: e.target.value})}
-                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
-                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={editingMember.birthDate?.split('-')[0] || ''}
+                        onChange={e => {
+                          const y = e.target.value;
+                          const m = editingMember.birthDate?.split('-')[1] || '01';
+                          const d = editingMember.birthDate?.split('-')[2] || '01';
+                          setEditingMember({...editingMember, birthDate: y ? `${y}-${m}-${d}` : ''});
+                        }}
+                        className="w-1/3 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
+                      >
+                        <option value="">年</option>
+                        {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                          <option key={y} value={y}>{y}年</option>
+                        ))}
+                      </select>
+                      <select
+                        value={editingMember.birthDate?.split('-')[1] || ''}
+                        onChange={e => {
+                          const y = editingMember.birthDate?.split('-')[0] || String(new Date().getFullYear());
+                          const m = e.target.value;
+                          const d = editingMember.birthDate?.split('-')[2] || '01';
+                          setEditingMember({...editingMember, birthDate: m ? `${y}-${m.padStart(2, '0')}-${d}` : ''});
+                        }}
+                        className="w-1/3 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
+                      >
+                        <option value="">月</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={String(m).padStart(2, '0')}>{m}月</option>
+                        ))}
+                      </select>
+                      <select
+                        value={editingMember.birthDate?.split('-')[2] || ''}
+                        onChange={e => {
+                          const y = editingMember.birthDate?.split('-')[0] || String(new Date().getFullYear());
+                          const m = editingMember.birthDate?.split('-')[1] || '01';
+                          const d = e.target.value;
+                          setEditingMember({...editingMember, birthDate: d ? `${y}-${m}-${d.padStart(2, '0')}` : ''});
+                        }}
+                        className="w-1/3 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
+                      >
+                        <option value="">日</option>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                          <option key={d} value={String(d).padStart(2, '0')}>{d}日</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* 加入日 */}

@@ -196,8 +196,11 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                   required
                 />
               </div>
-              <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                <label className="block text-sm font-medium text-gray-700 mb-2">対象月（ポンポンとタップして複数選択可）</label>
+              <div className="bg-blue-50 p-4 rounded-md border-2 border-blue-200 shadow-sm relative">
+                <div className="absolute top-0 right-0 -mt-3 -mr-2">
+                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow">必須</span>
+                </div>
+                <label className="block text-sm font-bold text-blue-900 mb-2">何月分の入金ですか？（対象月）</label>
                 <div className="flex flex-wrap gap-2 mb-3">
                   {Array.from(new Set([...quickMonths, ...targetMonths])).sort().map(m => {
                     const isSelected = targetMonths.includes(m);
@@ -310,15 +313,17 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                 <>
                   <button 
                     type="submit"
+                    disabled={targetMonths.length === 0}
                     onClick={() => submitTargetRef.current = '道院'}
-                    className="bg-indigo-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
+                    className={`border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white transition-colors shadow-sm ${targetMonths.length === 0 ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'}`}
                   >
                     道院分として登録
                   </button>
                   <button 
                     type="submit"
+                    disabled={targetMonths.length === 0}
                     onClick={() => submitTargetRef.current = 'スポ少'}
-                    className="bg-orange-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors shadow-sm"
+                    className={`border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white transition-colors shadow-sm ${targetMonths.length === 0 ? 'bg-orange-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500'}`}
                   >
                     スポ少分として登録
                   </button>
@@ -326,7 +331,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               ) : (
                 <button 
                   type="submit"
-                  className="bg-indigo-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
+                  disabled={targetMonths.length === 0}
+                  className={`border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white transition-colors shadow-sm ${targetMonths.length === 0 ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'}`}
                 >
                   登録する
                 </button>

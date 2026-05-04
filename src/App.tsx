@@ -435,6 +435,8 @@ function App() {
           fiscalYear={activeFiscalYear}
           onCancelTransaction={handleCancelTransaction}
           onCancelExpense={handleCancelExpense}
+          onUpdateTransaction={handleUpdateTransaction}
+          onUpdateExpense={handleUpdateExpense}
         />
       )}
 
