@@ -9,13 +9,14 @@ import { Member } from '../types';
 export const calculateAgeAtEndOfFiscalYear = (birthDate: string, currentDate: Date = new Date()): number => {
   const bd = new Date(birthDate);
   const targetYear = currentDate.getMonth() >= 3 ? currentDate.getFullYear() + 1 : currentDate.getFullYear();
-  // 今年度の3月31日（厳密には4月1日の前日）に到達する年齢
-  // 翌年4月1日として、誕生年を引くことで年度内に達する年齢を算出
-  const fiscalEndAge = targetYear - bd.getFullYear();
-  
-  // 生まれ月が4月1日以降の場合の処理（通常は誕生日の年との差分で年度末年齢となる）
-  // ただし、早生まれ（1月〜4月1日生）の場合の学年繰り上げ等の細かい仕様は必要に応じて調整
-  // 簡略化して: (対象年度の翌年 - 誕生年) をそのまま返す
+
+  // 年度末（targetYear年3月31日）時点で誕生日を迎えているかどうかで年齢を調整する。
+  // 誕生月が1〜3月（月インデックス0〜2）なら年度末までに誕生日到達済み。
+  // 4〜12月生まれは年度末時点でまだ誕生日を迎えていないため、年齢を1歳減らす
+  // （この調整がないと大多数の会員で年齢が実際より1歳多く計算されてしまう）。
+  const hasHadBirthdayByFiscalYearEnd = bd.getMonth() <= 2;
+  const fiscalEndAge = targetYear - bd.getFullYear() - (hasHadBirthdayByFiscalYearEnd ? 0 : 1);
+
   return fiscalEndAge;
 };
 
