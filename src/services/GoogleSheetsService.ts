@@ -1,18 +1,17 @@
 import { Member, Transaction, Expense, Budget, Organization } from '../types';
-import { getValidToken } from '../utils/googleAuth';
-
-const SPREADSHEET_ID = (import.meta as any).env.VITE_GOOGLE_SPREADSHEET_ID;
 
 export class GoogleSheetsService {
 
+  /**
+   * Google Sheets APIへのアクセスは全て /api/sheets（Vercelサーバーレス関数）を経由する。
+   * サービスアカウントの秘密鍵とスプレッドシートIDはサーバー側の環境変数にのみ保持され、
+   * クライアント（ブラウザ）へは一切送信されない。
+   */
   private static async fetchApi(range: string, config: RequestInit = {}) {
-    if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
-    const token = await getValidToken();
-
-    return fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`, {
+    const path = encodeURIComponent(`values/${range}`);
+    return fetch(`/api/sheets?path=${path}`, {
       ...config,
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...config.headers
       }
@@ -729,14 +728,9 @@ export class GoogleSheetsService {
    * batchUpdate 共通メソッド
    */
   static async batchUpdateValues(data: { range: string, values: any[][] }[]) {
-    if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
-    const token = await getValidToken();
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`, {
+    const res = await fetch(`/api/sheets?path=${encodeURIComponent('values:batchUpdate')}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         valueInputOption: 'USER_ENTERED',
         data
@@ -751,17 +745,10 @@ export class GoogleSheetsService {
    */
   static async restoreData(data: { members: Member[], budgets: Budget[], transactions: Transaction[], expenses: Expense[] }): Promise<boolean> {
     try {
-      if (!SPREADSHEET_ID) throw new Error('VITE_GOOGLE_SPREADSHEET_ID is not defined');
-      const token = await getValidToken();
-
       // 1. Clear existing data (keeping headers)
-      const batchClearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchClear`;
-      await fetch(batchClearUrl, {
+      await fetch(`/api/sheets?path=${encodeURIComponent('values:batchClear')}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ranges: [
             'M_Members!A2:Z',
