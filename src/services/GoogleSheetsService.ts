@@ -268,10 +268,68 @@ export class GoogleSheetsService {
 
   // ============================================================
   //  T_Transactions
+  //  【新フォーマット（2026-03-11改修以降に作成/更新された行, A〜M全13列）】
   //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
   //  F: 費目, G: 金額, H: 支払方法, I: 領収書URL, J: 入力者ID,
   //  K: 取消フラグ, L: 年度, M: 対象月(YYYY-MM)
+  //
+  //  【旧フォーマット（改修前に作成され、まだ一度も更新されていない行, A〜K全11列）】
+  //  領収書URL列・取消フラグ列が存在しないため1列ずつ手前にズレる：
+  //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
+  //  F: 費目, G: 金額, H: 支払方法, I: 入力者ID, J: 年度, K: 対象月(YYYY-MM)
+  //
+  //  行ごとにどちらの形式か自動判定して読み込む（parseTransactionRow）。
+  //  一度でも updateTransaction / cancelTransaction を通ると、その行は
+  //  新フォーマットの13列で書き戻され、以後は正しく読み書きされる。
   // ============================================================
+
+  /**
+   * T_Transactions の1行（新旧いずれかのフォーマット）を Transaction にパースする。
+   * K列（インデックス10）が 'TRUE'/'FALSE' の形をしているかどうかで新旧を判定する
+   * （旧フォーマットではこの位置に年度の数字が入っている）。
+   */
+  private static parseTransactionRow(row: string[]): Transaction {
+    const isBooleanLike = (v: string | undefined) => v === 'TRUE' || v === 'FALSE' || v === 'true' || v === 'false';
+    const isLegacyFormat = !isBooleanLike(row[10]);
+
+    let receiptUrl: string | undefined;
+    let enteredById: string;
+    let isCancelled: boolean;
+    let fiscalYear: number;
+    let targetMonth: string | undefined;
+
+    if (isLegacyFormat) {
+      // 旧11列フォーマット（領収書URL列・取消フラグ列なし）
+      receiptUrl = undefined;
+      enteredById = row[8];
+      isCancelled = false; // 旧フォーマットには取消フラグ自体が存在しない
+      fiscalYear = this.parseNumber(row[9]) || new Date().getFullYear();
+      targetMonth = this.formatTargetMonth(row[10]);
+    } else {
+      // 新13列フォーマット
+      receiptUrl = row[8] || undefined;
+      enteredById = row[9];
+      isCancelled = row[10] === 'TRUE' || row[10] === 'true';
+      fiscalYear = this.parseNumber(row[11]) || new Date().getFullYear();
+      targetMonth = this.formatTargetMonth(row[12]);
+    }
+
+    return {
+      id: row[0],
+      timestamp: this.standardizeDate(row[1], fiscalYear) || row[1],
+      date: this.standardizeDate(row[2], fiscalYear),
+      organization: row[3] as '道院' | 'スポ少',
+      memberId: row[4],
+      item: row[5],
+      amount: this.parseNumber(row[6]),
+      paymentMethod: row[7],
+      receiptUrl,
+      enteredById,
+      isCancelled,
+      fiscalYear,
+      targetMonth
+    };
+  }
 
   static async fetchTransactions(): Promise<Transaction[]> {
     try {
@@ -279,24 +337,7 @@ export class GoogleSheetsService {
       const data = await res.json();
       if (!data.values) return [];
 
-      return data.values.map((row: string[]) => {
-        const fiscalYear = this.parseNumber(row[11]) || new Date().getFullYear();
-        return {
-          id: row[0],
-          timestamp: this.standardizeDate(row[1], fiscalYear) || row[1],
-          date: this.standardizeDate(row[2], fiscalYear),
-          organization: row[3] as '道院' | 'スポ少',
-          memberId: row[4],
-          item: row[5],
-          amount: this.parseNumber(row[6]),
-          paymentMethod: row[7],
-          receiptUrl: row[8],
-          enteredById: row[9],
-          isCancelled: row[10] === 'TRUE' || row[10] === 'true',
-          fiscalYear,
-          targetMonth: this.formatTargetMonth(row[12]) || undefined
-        };
-      });
+      return data.values.map((row: string[]) => this.parseTransactionRow(row));
     } catch (e) {
       console.error('Failed to fetch T_Transactions', e);
       return [];
@@ -388,11 +429,30 @@ export class GoogleSheetsService {
   }
 
   /**
-   * トランザクションを論理削除（取消）します
-   * J列（インデックス9）の取消フラグを TRUE に
+   * トランザクションを論理削除（取消）します。
+   * 旧フォーマットの行では取消フラグ列の位置が異なる（そもそも存在しない）ため、
+   * 単純な列指定ではなく行全体を正しくパースしてから取消フラグを立てて書き戻す。
+   * これにより、更新のたびに行が新フォーマット（13列）へ正規化される。
    */
   static async cancelTransaction(id: string): Promise<boolean> {
-    return this.updateCancelFlag('T_Transactions!A:A', id, 10);
+    try {
+      const res = await this.fetchApi('T_Transactions!A2:M');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      const row = data.values.find((r: string[]) => r[0] === id);
+      if (!row) {
+        console.error(`Transaction ID ${id} not found in T_Transactions for cancellation.`);
+        return false;
+      }
+
+      const tx = this.parseTransactionRow(row);
+      tx.isCancelled = true;
+      return this.updateTransaction(tx);
+    } catch (e) {
+      console.error(`Failed to cancel transaction ${id}`, e);
+      return false;
+    }
   }
 
   // ============================================================
