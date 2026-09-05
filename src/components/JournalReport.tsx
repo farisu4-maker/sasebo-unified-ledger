@@ -166,7 +166,7 @@ export const JournalReport: React.FC<JournalReportProps> = ({
                         {txs.sort((a,b) => a.date.localeCompare(b.date)).map(t => (
                           <tr key={t.id} className="border-t border-gray-100">
                             <td className="px-4 py-1.5">{t.date}</td>
-                            <td className="px-4 py-1.5 truncate max-w-[150px]">{t.targetMonth ? `${t.targetMonth}月分 ` : ''}{t.paymentMethod}</td>
+                            <td className="px-4 py-1.5 truncate max-w-[150px]">{t.targetMonth ? `${t.targetMonth.split('-')[0]}年${parseInt(t.targetMonth.split('-')[1], 10)}月分 ` : ''}{t.paymentMethod}</td>
                             <td className="px-4 py-1.5 text-right">{t.amount.toLocaleString()}</td>
                           </tr>
                         ))}
