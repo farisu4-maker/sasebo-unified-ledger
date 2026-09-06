@@ -7,7 +7,8 @@ export interface Member {
   yomigana?: string;  // スプレッドシート L列 から取得するヨミガナ
   role?: string;      // スプレッドシート M列 から取得する役職（支部長 / 副支部長 / 監事 等）
   birthDate: string; // YYYY-MM-DD
-  joinDate: string;  // YYYY-MM-DD
+  joinDate: string;  // YYYY-MM-DD（少林寺拳法への本部入門日。他支部からの転入者もここは変わらない）
+  transferDate?: string; // YYYY-MM-DD（他支部からこの支部へ転入してきた日。転入者のみ設定。在籍人数集計等はこちらを優先する）
   leaveDate?: string; // YYYY-MM-DD (null/undefined if active)
   organization: Organization;
   representativeId?: string; // 世帯代表者のMember_ID
