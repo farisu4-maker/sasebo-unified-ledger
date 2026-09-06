@@ -120,14 +120,15 @@ export class GoogleSheetsService {
 
   // ============================================================
   //  M_Members
-  //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日,
+  //  A: ID, B: 氏名, C: カナ, D: 生年月日, E: 入会日（本部入門日）,
   //  F: 所属区分, G: 代表者ID, H: 状態, I: 脱退日,
-  //  J: 免除フラグ, K: 備考, L: ヨミガナ, M: 役職
+  //  J: 免除フラグ, K: 備考, L: ヨミガナ, M: 役職, N: 転入日
+  //  （N列は他支部からの転入者のみ設定。在籍人数集計は入会日より転入日を優先する）
   // ============================================================
 
   static async fetchMembers(): Promise<Member[]> {
     try {
-      const res = await this.fetchApi('M_Members!A2:M');
+      const res = await this.fetchApi('M_Members!A2:N');
       const data = await res.json();
       if (!data.values) return [];
 
@@ -145,6 +146,7 @@ export class GoogleSheetsService {
         notes: row[10] || '',
         yomigana: row[11] || undefined,
         role: row[12] || undefined,        // M列：役職
+        transferDate: row[13] ? this.standardizeDate(row[13]) : undefined, // N列：転入日
       }));
     } catch (e) {
       console.error('Failed to fetch M_Members', e);
@@ -181,12 +183,13 @@ export class GoogleSheetsService {
         member.leaveDate || '',
         member.exemptionFlag ? 'TRUE' : 'FALSE',
         member.notes || '',
-        member.yomigana || '',  // L列：ヨミガナ
-        member.role || '',      // M列：役職
+        member.yomigana || '',      // L列：ヨミガナ
+        member.role || '',          // M列：役職
+        member.transferDate || '',  // N列：転入日
       ]];
 
       const updateRes = await this.batchUpdateValues([{
-        range: `M_Members!A${sheetRow}:M${sheetRow}`,
+        range: `M_Members!A${sheetRow}:N${sheetRow}`,
         values
       }]);
 
@@ -222,9 +225,10 @@ export class GoogleSheetsService {
         member.notes || '',
         member.yomigana || '',
         member.role || '',
+        member.transferDate || '',
       ]];
 
-      const res = await this.fetchApi('M_Members!A:M:append?valueInputOption=USER_ENTERED', {
+      const res = await this.fetchApi('M_Members!A:N:append?valueInputOption=USER_ENTERED', {
         method: 'POST',
         body: JSON.stringify({ values })
       });
@@ -763,7 +767,7 @@ export class GoogleSheetsService {
       const membersData = data.members.map(m => [
           m.id, m.name, m.kana, m.birthDate, m.joinDate, m.organization,
           m.representativeId || '', m.status, m.leaveDate || '', m.exemptionFlag ? 'TRUE' : 'FALSE',
-          m.notes || '', m.yomigana || '', m.role || ''
+          m.notes || '', m.yomigana || '', m.role || '', m.transferDate || ''
       ]);
       const budgetsData = data.budgets.map(b => [
           b.organization, b.category, b.amount, b.initialBalance || 0, b.finalBalance !== undefined ? b.finalBalance : '', b.year
