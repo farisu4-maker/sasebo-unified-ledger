@@ -122,6 +122,10 @@ export const JournalReport: React.FC<JournalReportProps> = ({
               width: 100%;
               padding: 0;
             }
+            @page {
+              size: A4 landscape;
+              margin: 10mm;
+            }
             .page-break {
               page-break-before: always;
             }
