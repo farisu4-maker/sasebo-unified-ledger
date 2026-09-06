@@ -84,7 +84,19 @@ export const Settings: React.FC<SettingsProps> = ({
   };
 
   const handleYearEndClose = async () => {
-    if (!window.confirm(`${fiscalYear}年度の決算処理（Rollover）を実行しますか？\nこの操作は元に戻せません。`)) {
+    // 二重実行防止: 既に翌年度の「次年度繰越（システム生成）」行がある場合は、
+    // そのまま進めると繰越金が二重に計上されてしまうため強く警告する
+    const alreadyClosed = budgets.some(
+      b => b.year === fiscalYear + 1 && b.category === '次年度繰越（システム生成）'
+    );
+
+    if (alreadyClosed) {
+      if (!window.confirm(
+        `${fiscalYear}年度は既に決算処理済みのようです。\nこのまま続行すると、${fiscalYear + 1}年度の繰越金が二重に計上され、金額が壊れます。\n\n通常は先に「決算取り消し」を実行してから、必要であれば再実行してください。\nそれでもこのまま強行しますか？`
+      )) {
+        return;
+      }
+    } else if (!window.confirm(`${fiscalYear}年度の決算処理（Rollover）を実行しますか？\nこの操作は元に戻せません。`)) {
       return;
     }
 
