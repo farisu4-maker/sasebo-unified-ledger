@@ -76,6 +76,7 @@ export const MembersList: React.FC<MembersListProps> = ({
       role: '',
       birthDate: '',
       joinDate: new Date().toISOString().split('T')[0],
+      transferDate: '',
       leaveDate: '',
       organization: '道院',
       status: '現役',
@@ -123,9 +124,20 @@ export const MembersList: React.FC<MembersListProps> = ({
       parsedLeave = pl;
     }
 
+    let parsedTransfer: string | undefined = undefined;
+    if (editingMember.transferDate && editingMember.transferDate.trim() !== '') {
+      const pt = parseJapaneseDate(editingMember.transferDate);
+      if (!pt) {
+        setFormError(`転入日の形式が認識できません。`);
+        return;
+      }
+      parsedTransfer = pt;
+    }
+
     const memberToSave = {
       ...editingMember,
       joinDate: parsedJoin,
+      transferDate: parsedTransfer,
       leaveDate: parsedLeave,
       // 自動ステータス補正: 脱退日があれば退会（ユーザーが手動で退会にした場合も尊重）
       status: (parsedLeave && parsedLeave <= new Date().toISOString().split('T')[0]) ? '退会' : (editingMember.status || '現役'),
@@ -402,6 +414,9 @@ export const MembersList: React.FC<MembersListProps> = ({
                           <td className={`px-3 py-2 text-xs ${!isActive ? 'text-gray-400' : 'text-gray-600'}`}>
                             <div className="space-y-0.5">
                               <div>加入: <span className="font-medium">{member.joinDate || '―'}</span></div>
+                              {member.transferDate && (
+                                <div className="text-indigo-500">転入: <span className="font-medium">{member.transferDate}</span></div>
+                              )}
                               {member.leaveDate && (
                                 <div className={!isActive ? 'text-gray-500' : 'text-rose-600'}>脱退: <span className="font-medium">{member.leaveDate}</span></div>
                               )}
@@ -549,6 +564,18 @@ export const MembersList: React.FC<MembersListProps> = ({
                       onChange={e => setEditingMember({...editingMember, joinDate: e.target.value})}
                       className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
                     />
+                  </div>
+
+                  {/* 転入日（他支部からの移動者のみ） */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">転入日（他支部からの移動者のみ）</label>
+                    <input
+                      type="date"
+                      value={editingMember.transferDate || ''}
+                      onChange={e => setEditingMember({...editingMember, transferDate: e.target.value})}
+                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">※加入日は本部への入門日のまま変更不要。この支部への転入者のみ入力してください（在籍人数集計はこちらを優先します）</p>
                   </div>
 
                   {/* 脱退日 */}
