@@ -96,9 +96,11 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   // ── 人数サマリー（M_Membersの実データを使用） ─────────────
   const calculateHeadcount = (org: '道院' | 'スポ少') => {
     // 「両方」は道院・スポ少両方にカウント
+    // 在籍人数の起算日は、他支部からの転入者は転入日を、それ以外は入会日（本部入門日）を用いる
     const orgMembers = members.filter(m => m.organization === org || m.organization === '両方');
-    const opening = orgMembers.filter(m => m.joinDate < fyStart && (!m.leaveDate || m.leaveDate >= fyStart)).length;
-    const joined  = orgMembers.filter(m => m.joinDate >= fyStart && m.joinDate <= fyEnd).length;
+    const effectiveStart = (m: Member) => m.transferDate || m.joinDate;
+    const opening = orgMembers.filter(m => effectiveStart(m) < fyStart && (!m.leaveDate || m.leaveDate >= fyStart)).length;
+    const joined  = orgMembers.filter(m => effectiveStart(m) >= fyStart && effectiveStart(m) <= fyEnd).length;
     const left    = orgMembers.filter(m => m.leaveDate && m.leaveDate >= fyStart && m.leaveDate <= fyEnd).length;
     const closing = opening + joined - left;
     return { opening, joined, left, closing };
