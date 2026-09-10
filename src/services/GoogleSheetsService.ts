@@ -271,29 +271,32 @@ export class GoogleSheetsService {
 
   // ============================================================
   //  T_Transactions
-  //  【新フォーマット（2026-03-11改修以降に作成/更新された行, A〜M全13列）】
+  //  過去の改修経緯により、シート上には3種類の列フォーマットが混在している。
+  //  「実際の列数（row.length）」で判定すること。K列など特定セルの値の
+  //  見た目（TRUE/FALSE か数字か）で推測すると、12列フォーマットを
+  //  新13列・旧11列のどちらとも取り違え、日付が1年ずれる等の不具合が出る。
+  //
+  //  【13列フォーマット（現行。sync/update は必ずこの形で書き戻す）】
   //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
   //  F: 費目, G: 金額, H: 支払方法, I: 領収書URL, J: 入力者ID,
   //  K: 取消フラグ, L: 年度, M: 対象月(YYYY-MM)
   //
-  //  【旧フォーマット（改修前に作成され、まだ一度も更新されていない行, A〜K全11列）】
-  //  領収書URL列・取消フラグ列が存在しないため1列ずつ手前にズレる：
-  //  A: ID, B: timestamp, C: 日付, D: 組織, E: メンバーID,
-  //  F: 費目, G: 金額, H: 支払方法, I: 入力者ID, J: 年度, K: 対象月(YYYY-MM)
+  //  【12列フォーマット（領収書URL列なし・取消フラグ列あり）】
+  //  A〜H は13列と同じ。I: 入力者ID, J: 取消フラグ, K: 年度, L: 対象月(YYYY-MM)
   //
-  //  行ごとにどちらの形式か自動判定して読み込む（parseTransactionRow）。
+  //  【11列フォーマット（最初期。領収書URL列も取消フラグ列もなし）】
+  //  A〜H は13列と同じ。I: 入力者ID, J: 年度, K: 対象月(YYYY-MM)
+  //
   //  一度でも updateTransaction / cancelTransaction を通ると、その行は
-  //  新フォーマットの13列で書き戻され、以後は正しく読み書きされる。
+  //  13列フォーマットで書き戻され、以後は先頭分岐で正しく読める。
   // ============================================================
 
   /**
-   * T_Transactions の1行（新旧いずれかのフォーマット）を Transaction にパースする。
-   * K列（インデックス10）が 'TRUE'/'FALSE' の形をしているかどうかで新旧を判定する
-   * （旧フォーマットではこの位置に年度の数字が入っている）。
+   * T_Transactions の1行（11/12/13列いずれかのフォーマット）を Transaction にパースする。
+   * 判定は row.length のみで行う（セルの値の内容による推測はしない）。
    */
   private static parseTransactionRow(row: string[]): Transaction {
-    const isBooleanLike = (v: string | undefined) => v === 'TRUE' || v === 'FALSE' || v === 'true' || v === 'false';
-    const isLegacyFormat = !isBooleanLike(row[10]);
+    const asBool = (v: string | undefined) => v === 'TRUE' || v === 'true';
 
     let receiptUrl: string | undefined;
     let enteredById: string;
@@ -301,20 +304,27 @@ export class GoogleSheetsService {
     let fiscalYear: number;
     let targetMonth: string | undefined;
 
-    if (isLegacyFormat) {
-      // 旧11列フォーマット（領収書URL列・取消フラグ列なし）
-      receiptUrl = undefined;
-      enteredById = row[8];
-      isCancelled = false; // 旧フォーマットには取消フラグ自体が存在しない
-      fiscalYear = this.parseNumber(row[9]) || new Date().getFullYear();
-      targetMonth = this.formatTargetMonth(row[10]);
-    } else {
-      // 新13列フォーマット
+    if (row.length >= 13) {
+      // 13列フォーマット（現行）
       receiptUrl = row[8] || undefined;
       enteredById = row[9];
-      isCancelled = row[10] === 'TRUE' || row[10] === 'true';
+      isCancelled = asBool(row[10]);
       fiscalYear = this.parseNumber(row[11]) || new Date().getFullYear();
       targetMonth = this.formatTargetMonth(row[12]);
+    } else if (row.length === 12) {
+      // 12列フォーマット（領収書URL列なし・取消フラグ列あり）
+      receiptUrl = undefined;
+      enteredById = row[8];
+      isCancelled = asBool(row[9]);
+      fiscalYear = this.parseNumber(row[10]) || new Date().getFullYear();
+      targetMonth = this.formatTargetMonth(row[11]);
+    } else {
+      // 11列以下（最初期フォーマット：取消フラグ列なし）
+      receiptUrl = undefined;
+      enteredById = row[8];
+      isCancelled = false;
+      fiscalYear = this.parseNumber(row[9]) || new Date().getFullYear();
+      targetMonth = this.formatTargetMonth(row[10]);
     }
 
     return {
