@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Member, Transaction, Expense, Budget } from '../types/index';
-import { PaymentStatusMatrix } from './PaymentStatusMatrix';
 import { sortMembers } from '../utils/memberSort';
 
 interface AuditReportProps {
@@ -19,8 +18,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({
   transactions,
   expenses,
   budgets,
-  fiscalYear,
-  onTransactionUpdate
+  fiscalYear
 }) => {
   const [reportTab, setReportTab] = useState<ReportTab>('report');
   const [printMode, setPrintMode] = useState<'all' | 'doin' | 'spo'>('all');
@@ -258,6 +256,8 @@ export const AuditReport: React.FC<AuditReportProps> = ({
       </div>
 
       {/* ── 月別納入チェック表タブ ──────────────────── */}
+      {/* 拳士別・月別の済/未納チェック（対話操作版）は「納入チェック表」タブへ移動済み。
+          ここには印刷用の個人別年間納入明細表のみを残す。 */}
       {reportTab === 'matrix' && (
         <div className="space-y-16">
           <div>
@@ -265,33 +265,6 @@ export const AuditReport: React.FC<AuditReportProps> = ({
               <h3 className="text-lg font-bold text-gray-800">
                 令和{fiscalYear - 2018}年度 月別納入チェック表
               </h3>
-            </div>
-            
-            <div className="print-content space-y-12 print:hidden no-print">
-              {(printMode === 'all' || printMode === 'doin') && (
-                <div>
-                  <h4 className="text-md font-bold text-gray-800 mb-2 border-l-4 border-blue-600 pl-2">月別納入チェック表（少林寺拳法佐世保道院）</h4>
-                  <PaymentStatusMatrix
-                    members={members}
-                    transactions={transactions}
-                    fiscalYear={fiscalYear}
-                    org="道院"
-                    onTransactionUpdate={onTransactionUpdate}
-                  />
-                </div>
-              )}
-              {(printMode === 'all' || printMode === 'spo') && (
-                <div className={printMode === 'all' ? 'print:break-before-page break-before-page' : ''}>
-                  <h4 className="text-md font-bold text-gray-800 mb-2 border-l-4 border-emerald-600 pl-2">月別納入チェック表（佐世保西スポーツ少年団）</h4>
-                  <PaymentStatusMatrix
-                    members={members}
-                    transactions={transactions}
-                    fiscalYear={fiscalYear}
-                    org="スポ少"
-                    onTransactionUpdate={onTransactionUpdate}
-                  />
-                </div>
-              )}
             </div>
           </div>
 
