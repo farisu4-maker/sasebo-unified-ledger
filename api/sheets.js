@@ -60,7 +60,17 @@ async function getAccessToken() {
 // このプロキシが中継してよいGoogle Sheets APIのパスだけを許可する
 // （任意のGoogle APIへの踏み台になることを防ぐ）
 function isAllowedPath(path) {
-  return /^values\/[^/]+$/.test(path) || path === 'values:batchUpdate' || path === 'values:batchClear';
+  return /^values\/[^/]+$/.test(path)
+    || path === 'values:batchUpdate'
+    || path === 'values:batchClear'
+    || path === 'batchUpdate';
+}
+
+// 'batchUpdate'（スプレッドシート構造の変更）は、新しいシート（タブ）の
+// 追加だけを許可する。シート削除・名前変更等の破壊的操作は通さない。
+function isAllowedStructuralBody(body) {
+  if (!body || !Array.isArray(body.requests)) return false;
+  return body.requests.every(r => r && typeof r === 'object' && Object.keys(r).length === 1 && 'addSheet' in r);
 }
 
 export default async function handler(req, res) {
@@ -73,6 +83,11 @@ export default async function handler(req, res) {
     const path = req.query.path;
     if (!path || Array.isArray(path) || !isAllowedPath(path)) {
       res.status(400).json({ error: 'Invalid or disallowed path' });
+      return;
+    }
+
+    if (path === 'batchUpdate' && !isAllowedStructuralBody(req.body)) {
+      res.status(400).json({ error: 'Only addSheet requests are allowed on batchUpdate' });
       return;
     }
 
