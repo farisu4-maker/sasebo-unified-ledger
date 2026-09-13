@@ -6,6 +6,7 @@ import { PaymentForm } from './components/PaymentForm';
 import { PaymentStatusPage } from './components/PaymentStatusPage';
 import { ExpenseForm } from './components/ExpenseForm';
 import { PersonalCollectionForm } from './components/PersonalCollectionForm';
+import { PersonalCollectionQuickModal } from './components/PersonalCollectionQuickModal';
 import { AuditReport } from './components/AuditReport';
 import { JournalReport } from './components/JournalReport';
 import { HistoryList } from './components/HistoryList';
@@ -33,6 +34,7 @@ function App() {
   });
 
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [quickCollectionMember, setQuickCollectionMember] = useState<Member | null>(null);
 
   // ── アプリの全データを管理するステート ─────────────────
   const [members, setMembers] = useState<Member[]>([]);
@@ -462,6 +464,7 @@ function App() {
             onMemberUpdate={handleMemberUpdate}
             onMemberAdd={handleMemberAdd}
             onTransactionUpdate={handleUpdateTransaction}
+            onQuickPersonalCollection={setQuickCollectionMember}
           />
         </div>
       )}
@@ -559,6 +562,15 @@ function App() {
           transactions={transactions}
           onClose={() => setSelectedMember(null)}
           onSubmit={handlePaymentSubmit}
+        />
+      )}
+
+      {/* ── 個人徴収記録クイック入力モーダル（拳士一覧から） ─── */}
+      {quickCollectionMember && (
+        <PersonalCollectionQuickModal
+          member={quickCollectionMember}
+          onClose={() => setQuickCollectionMember(null)}
+          onSubmit={handlePersonalCollectionSubmit}
         />
       )}
     </Layout>
