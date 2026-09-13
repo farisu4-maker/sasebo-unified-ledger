@@ -63,6 +63,11 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'settings', label: 'システム設定', icon: <SettingsIcon size={20} /> },
   ];
 
+  // スマホ下部の常時表示ナビは、よく使う項目だけに絞る（9項目全部だと窮屈で見づらいため）。
+  // それ以外の項目は「メニュー」ボタンから、上部のハンバーガーメニューと同じ一覧を開いて選ぶ。
+  const mobilePrimaryIds = ['dashboard', 'members', 'paymentStatus', 'expenses'];
+  const mobilePrimaryItems = navItems.filter(item => mobilePrimaryIds.includes(item.id));
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex flex-col md:flex-row">
       {/* Mobile Header */}
@@ -206,7 +211,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
       {/* Mobile Bottom Navigation (for quick access) */}
       <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex justify-around">
-        {navItems.map((item) => (
+        {mobilePrimaryItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onTabChange(item.id)}
@@ -218,6 +223,16 @@ export const Layout: React.FC<LayoutProps> = ({
             <span className="text-[10px] mt-1 font-medium">{item.label}</span>
           </button>
         ))}
+        {/* それ以外の項目（個人徴収記録・監査レポート・印刷・履歴・設定など）はここから */}
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={`flex flex-col items-center justify-center w-full py-3 ${
+            !mobilePrimaryIds.includes(activeTab) ? getThemeTextHover().replace('hover:', '') : 'text-gray-400'
+          }`}
+        >
+          <Menu size={20} />
+          <span className="text-[10px] mt-1 font-medium">メニュー</span>
+        </button>
       </div>
     </div>
   );
