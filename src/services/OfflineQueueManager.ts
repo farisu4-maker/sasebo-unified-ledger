@@ -1,6 +1,6 @@
 const QUEUE_KEY = 'sasebo_offline_queue';
 
-export type QueueItemType = 'TRANSACTION' | 'EXPENSE';
+export type QueueItemType = 'TRANSACTION' | 'EXPENSE' | 'PERSONAL_COLLECTION';
 
 export interface QueueItem {
   id: string; // The transaction or expense ID
