@@ -62,6 +62,25 @@ export interface Expense {
   fiscalYear?: number;
 }
 
+/**
+ * 個人徴収記録（台帳外）
+ * 昇段試験受験料や拳士個人の会費など、本来「団体（道院・スポ少）が支払う
+ * 必要のないもの」を、便宜上まとめて集金・記録するための帳票。
+ * 台帳（入金・支出・監査レポート・仕訳帳・予算計算等）には一切含めない。
+ */
+export interface PersonalCollection {
+  id: string;
+  date: string;
+  memberId: string;
+  purpose: string;       // 摘要（例：昇段試験受験料、道着代 等）
+  amount: number;
+  paymentMethod: string;
+  notes?: string;         // 備考
+  enteredById: string;
+  timestamp: string;
+  isCancelled?: boolean;  // 取消フラグ（論理削除）
+}
+
 export interface Budget {
   id: string;
   organization: '道院' | 'スポ少' | '両方';
