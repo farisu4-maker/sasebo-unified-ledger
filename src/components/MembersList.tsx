@@ -12,6 +12,7 @@ interface MembersListProps {
   onMemberUpdate: (member: Member) => void;
   onMemberAdd: (member: Member) => void;
   onTransactionUpdate?: (updated: Transaction) => void | Promise<void>;
+  onQuickPersonalCollection?: (member: Member) => void;
 }
 
 /** birthDate (YYYY-MM-DD) → 本日時点の満年齢 */
@@ -48,7 +49,7 @@ const ORG_OPTIONS: Organization[] = ['道院', 'スポ少', '両方'];
 const STATUS_OPTIONS = ['現役', '休眠', '退会'];
 
 export const MembersList: React.FC<MembersListProps> = ({
-  members, transactions, fiscalYear, onSelectMember, onMemberUpdate, onMemberAdd, onTransactionUpdate
+  members, transactions, fiscalYear, onSelectMember, onMemberUpdate, onMemberAdd, onTransactionUpdate, onQuickPersonalCollection
 }) => {
   // 絞り込みフィルター状態
   const [showActive, setShowActive] = useState(true);
@@ -360,7 +361,20 @@ export const MembersList: React.FC<MembersListProps> = ({
                               >
                                 履歴
                               </button>
-                              
+
+                              {onQuickPersonalCollection && (
+                                <button
+                                  onClick={() => onQuickPersonalCollection(member)}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 rounded shadow-sm transition-colors text-sm flex-1 text-center min-w-[60px] flex items-center justify-center gap-1"
+                                  title="個人徴収記録（台帳外）を追加"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9v3" />
+                                  </svg>
+                                  個人徴収
+                                </button>
+                              )}
+
                               <button
                                 onClick={() => handleOpenEditModal(member)}
                                 className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-3 rounded shadow-sm transition-colors text-sm flex-1 text-center min-w-[60px] flex items-center justify-center gap-1"
