@@ -63,7 +63,7 @@ function isAllowedPath(path) {
   return /^values\/[^/]+$/.test(path)
     || path === 'values:batchUpdate'
     || path === 'values:batchClear'
-    || path === 'batchUpdate';
+    || path === ':batchUpdate';
 }
 
 // 'batchUpdate'（スプレッドシート構造の変更）は、新しいシート（タブ）の
@@ -86,13 +86,17 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (path === 'batchUpdate' && !isAllowedStructuralBody(req.body)) {
-      res.status(400).json({ error: 'Only addSheet requests are allowed on batchUpdate' });
+    if (path === ':batchUpdate' && !isAllowedStructuralBody(req.body)) {
+      res.status(400).json({ error: 'Only addSheet requests are allowed on :batchUpdate' });
       return;
     }
 
     const token = await getAccessToken();
-    const targetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/${path}`;
+    // 構造変更( :batchUpdate )は spreadsheets/{id}:batchUpdate という
+    // コロン区切りのパスになる（value系のようなスラッシュ区切りではない）
+    const targetUrl = path.startsWith(':')
+      ? `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}${path}`
+      : `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/${path}`;
 
     const upstreamRes = await fetch(targetUrl, {
       method: req.method,
