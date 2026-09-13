@@ -3,13 +3,15 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { MembersList } from './components/MembersList';
 import { PaymentForm } from './components/PaymentForm';
+import { PaymentStatusPage } from './components/PaymentStatusPage';
 import { ExpenseForm } from './components/ExpenseForm';
+import { PersonalCollectionForm } from './components/PersonalCollectionForm';
 import { AuditReport } from './components/AuditReport';
 import { JournalReport } from './components/JournalReport';
 import { HistoryList } from './components/HistoryList';
 import { Settings } from './components/Settings';
 import { sampleFeeItems } from './mocks/sampleData';
-import { Member, Organization, Transaction, Expense, Budget } from './types';
+import { Member, Organization, Transaction, Expense, Budget, PersonalCollection } from './types';
 import { OfflineQueueManager } from './services/OfflineQueueManager';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 
@@ -37,6 +39,7 @@ function App() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [personalCollections, setPersonalCollections] = useState<PersonalCollection[]>([]);
 
   // ── 通知バナー（成功 / エラー）─────────────────────────
   const [notification, setNotification] = useState<AppNotification | null>(null);
@@ -76,6 +79,8 @@ function App() {
           success = await GoogleSheetsService.syncTransaction(item.payload);
         } else if (item.type === 'EXPENSE') {
           success = await GoogleSheetsService.syncExpense(item.payload);
+        } else if (item.type === 'PERSONAL_COLLECTION') {
+          success = await GoogleSheetsService.syncPersonalCollection(item.payload);
         }
         if (success) {
           OfflineQueueManager.dequeue(item.id, item.type);
@@ -105,11 +110,12 @@ function App() {
       setIsSyncing(true);
       try {
         // 並列フェッチ（Members / Budgets / Transactions / Expenses）
-        const [fetchedMembers, fetchedBudgets, fetchedTx, fetchedEx] = await Promise.all([
+        const [fetchedMembers, fetchedBudgets, fetchedTx, fetchedEx, fetchedPc] = await Promise.all([
           GoogleSheetsService.fetchMembers(),
           GoogleSheetsService.fetchBudgets(),
           GoogleSheetsService.fetchTransactions(),
           GoogleSheetsService.fetchExpenses(),
+          GoogleSheetsService.fetchPersonalCollections(),
         ]);
 
         // シートのデータを直接正とする（空なら空配列を設定し、ハードコードをフォールバックにしない）
@@ -117,6 +123,7 @@ function App() {
         setBudgets(fetchedBudgets);
         setTransactions(fetchedTx);
         setExpenses(fetchedEx);
+        setPersonalCollections(fetchedPc);
 
         if (OfflineQueueManager.getPendingCount() > 0) await syncOfflineData();
       } catch (e) {
@@ -286,6 +293,68 @@ function App() {
   }, [showNotification, showSyncError]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  //  個人徴収記録ハンドラ（台帳外・昇段試験受験料など）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handlePersonalCollectionSubmit = useCallback(async (data: {
+    date: string; memberId: string; purpose: string; amount: number; paymentMethod: string; notes: string;
+  }) => {
+    const now = new Date();
+    const targetMember = members.find((m: Member) => m.id === data.memberId);
+    const newPc: PersonalCollection = {
+      id: `P${Date.now()}`,
+      date: data.date,
+      memberId: data.memberId,
+      purpose: data.purpose,
+      amount: data.amount,
+      paymentMethod: data.paymentMethod,
+      notes: data.notes || undefined,
+      enteredById: 'U001',
+      timestamp: now.toISOString(),
+    };
+    setPersonalCollections((prev: PersonalCollection[]) => [newPc, ...prev]);
+
+    OfflineQueueManager.enqueue('PERSONAL_COLLECTION', newPc);
+    const synced = await GoogleSheetsService.syncPersonalCollection(newPc);
+    if (synced) {
+      OfflineQueueManager.dequeue(newPc.id, 'PERSONAL_COLLECTION');
+      showNotification(`${targetMember?.name ?? data.memberId} の個人徴収記録（${data.purpose}・${data.amount.toLocaleString()}円）を記録しました。台帳には反映されません。`);
+    } else {
+      showSyncError(`Sheetsへの書き込みに失敗しました。オフラインキューに保持します。`);
+    }
+
+    try {
+      const refreshed = await GoogleSheetsService.fetchPersonalCollections();
+      if (refreshed.length > 0) setPersonalCollections(refreshed);
+    } catch { /* スキップ */ }
+  }, [members, showNotification, showSyncError]);
+
+  const handleCancelPersonalCollection = useCallback(async (id: string) => {
+    setPersonalCollections((prev: PersonalCollection[]) => prev.map((c: PersonalCollection) => c.id === id ? { ...c, isCancelled: true } : c));
+    const ok = await GoogleSheetsService.cancelPersonalCollection(id);
+    if (ok) {
+      showNotification(`個人徴収記録（ID: ${id}）を取消しました。`);
+    } else {
+      setPersonalCollections((prev: PersonalCollection[]) => prev.map((c: PersonalCollection) => c.id === id ? { ...c, isCancelled: false } : c));
+      showSyncError(`取消に失敗しました（ID: ${id}）。通信環境を確認してください。`);
+    }
+  }, [showNotification, showSyncError]);
+
+  const handleUpdatePersonalCollection = useCallback(async (updated: PersonalCollection) => {
+    setPersonalCollections((prev: PersonalCollection[]) => prev.map((c: PersonalCollection) => c.id === updated.id ? updated : c));
+    const ok = await GoogleSheetsService.updatePersonalCollection(updated);
+    if (ok) {
+      showNotification(`個人徴収記録（ID: ${updated.id}）を更新しました。`);
+    } else {
+      showSyncError(`更新に失敗しました（ID: ${updated.id}）。`);
+      try {
+        const refreshed = await GoogleSheetsService.fetchPersonalCollections();
+        if (refreshed.length > 0) setPersonalCollections(refreshed);
+      } catch { /* スキップ */ }
+    }
+  }, [showNotification, showSyncError]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  メンバー更新ハンドラ（加入日・脱退日・ステータス）
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -397,6 +466,16 @@ function App() {
         </div>
       )}
 
+      {activeTab === 'paymentStatus' && (
+        <PaymentStatusPage
+          members={members}
+          transactions={transactions}
+          fiscalYear={activeFiscalYear}
+          activeOrgContext={activeOrgContext}
+          onTransactionUpdate={handleUpdateTransaction}
+        />
+      )}
+
       {activeTab === 'expenses' && (
         <ExpenseForm
           onSubmit={handleExpenseSubmit}
@@ -404,6 +483,17 @@ function App() {
           expenses={expenses}
           onExpenseUpdate={handleUpdateExpense}
           fiscalYear={activeFiscalYear}
+        />
+      )}
+
+      {activeTab === 'personalCollection' && (
+        <PersonalCollectionForm
+          members={members}
+          collections={personalCollections}
+          fiscalYear={activeFiscalYear}
+          onSubmit={handlePersonalCollectionSubmit}
+          onCancel={handleCancelPersonalCollection}
+          onUpdate={handleUpdatePersonalCollection}
         />
       )}
 
