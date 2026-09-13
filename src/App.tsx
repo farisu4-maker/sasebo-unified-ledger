@@ -536,6 +536,7 @@ function App() {
           transactions={transactions}
           expenses={expenses}
           budgets={budgets}
+          personalCollections={personalCollections}
           fiscalYear={activeFiscalYear}
           onCloseFiscalYear={async () => {
             setIsSyncing(true);
