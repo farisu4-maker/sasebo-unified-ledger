@@ -153,6 +153,11 @@ function App() {
   }) => {
     const now = new Date();
     const targetMember = members.find((m: Member) => m.id === data.memberId);
+    // 会計年度は「現在アプリで選択中の年度」ではなく、実際の対象月（何月分の会費か）
+    // から逆算する（4月始まり・1〜3月は前年度扱い）。過年度分の入力でも
+    // その取引が本来属する年度が正しく記録されるようにするため。
+    const [tYear, tMonth] = data.targetMonth.split('-').map(Number);
+    const derivedFiscalYear = tMonth <= 3 ? tYear - 1 : tYear;
     const newTx: Transaction = {
       id: `T${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       date: data.date,
@@ -165,7 +170,7 @@ function App() {
       enteredById: 'U001',
       timestamp: now.toISOString(),
       targetMonth: data.targetMonth,
-      fiscalYear: activeFiscalYear,
+      fiscalYear: derivedFiscalYear,
     };
 
     // 1. UI を即時反映
@@ -188,7 +193,7 @@ function App() {
     } catch { /* シート未設定時はスキップ */ }
 
     setSelectedMember(null);
-  }, [members, activeFiscalYear, showNotification, showSyncError]);
+  }, [members, showNotification, showSyncError]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  支出ハンドラ
