@@ -1,6 +1,6 @@
 import React from 'react';
 import { Organization } from '../types';
-import { LayoutDashboard, Users, ReceiptText as Receipt, FileText, Menu, X, Settings as SettingsIcon } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
+import { LayoutDashboard, Users, ReceiptText as Receipt, FileText, Menu, X, Settings as SettingsIcon, ClipboardCheck, Wallet } from 'lucide-react'; // Fallback icons or adjust based on actual import availability
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
@@ -54,7 +54,9 @@ export const Layout: React.FC<LayoutProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
     { id: 'members', label: '拳士・入金', icon: <Users size={20} /> },
+    { id: 'paymentStatus', label: '納入チェック表', icon: <ClipboardCheck size={20} /> },
     { id: 'expenses', label: '支出記録', icon: <Receipt size={20} /> },
+    { id: 'personalCollection', label: '個人徴収記録（台帳外）', icon: <Wallet size={20} /> },
     { id: 'reports', label: '監査・レポート', icon: <FileText size={20} /> },
     { id: 'journal', label: '印刷（仕訳帳）', icon: <FileText size={20} /> },
     { id: 'history', label: '履歴一覧・取消', icon: <FileText size={20} /> }, // History added
