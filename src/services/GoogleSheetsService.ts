@@ -867,8 +867,13 @@ export class GoogleSheetsService {
 
   /**
    * JSONバックアップからデータを復元（既存データを全消去して上書き）
+   * personalCollections（個人徴収記録・台帳外）は後から追加した項目のため、
+   * 古いバックアップファイルには含まれない場合がある（省略可）。
    */
-  static async restoreData(data: { members: Member[], budgets: Budget[], transactions: Transaction[], expenses: Expense[] }): Promise<boolean> {
+  static async restoreData(data: {
+    members: Member[], budgets: Budget[], transactions: Transaction[], expenses: Expense[],
+    personalCollections?: PersonalCollection[]
+  }): Promise<boolean> {
     try {
       // 1. Clear existing data (keeping headers)
       await fetch(`/api/sheets?path=${encodeURIComponent('values:batchClear')}`, {
@@ -879,7 +884,8 @@ export class GoogleSheetsService {
             'M_Members!A2:Z',
             'M_Budgets!A2:Z',
             'T_Transactions!A2:Z',
-            'T_Expenses!A2:Z'
+            'T_Expenses!A2:Z',
+            'T_PersonalCollections!A2:Z'
           ]
         })
       });
@@ -901,12 +907,17 @@ export class GoogleSheetsService {
           e.id, e.timestamp, e.date, e.organization, e.category, e.description || '', e.amount, e.paymentMethod, e.receiptUrl || '', e.enteredById,
           e.isCancelled ? 'TRUE' : 'FALSE', e.fiscalYear || new Date().getFullYear()
       ]);
+      const pcData = (data.personalCollections || []).map(p => [
+          p.id, p.timestamp, p.date, p.memberId, p.purpose, p.amount, p.paymentMethod, p.notes || '', p.enteredById,
+          p.isCancelled ? 'TRUE' : 'FALSE'
+      ]);
 
       const updates: { range: string, values: any[][] }[] = [];
       if (membersData.length > 0) updates.push({ range: 'M_Members!A2', values: membersData });
       if (budgetsData.length > 0) updates.push({ range: 'M_Budgets!A2', values: budgetsData });
       if (txData.length > 0) updates.push({ range: 'T_Transactions!A2', values: txData });
       if (expData.length > 0) updates.push({ range: 'T_Expenses!A2', values: expData });
+      if (pcData.length > 0) updates.push({ range: 'T_PersonalCollections!A2', values: pcData });
 
       // 3. Batch Update
       if (updates.length > 0) {
