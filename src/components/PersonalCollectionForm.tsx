@@ -108,6 +108,30 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
     setEditingId(null);
   };
 
+  // ── 確認用一覧表（集計・印刷用。台帳・監査・仕訳帳には使わない参考資料） ──
+  const [summaryGroupBy, setSummaryGroupBy] = useState<'purpose' | 'member'>('purpose');
+
+  const activeRows = useMemo(() => listRows.filter(c => !c.isCancelled), [listRows]);
+
+  const summaryGroups = useMemo(() => {
+    const groups: Record<string, PersonalCollection[]> = {};
+    activeRows.forEach(c => {
+      const key = summaryGroupBy === 'purpose' ? c.purpose : memberName(c.memberId);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
+    return Object.entries(groups)
+      .map(([key, rows]) => ({
+        key,
+        rows: [...rows].sort((a, b) => a.date.localeCompare(b.date)),
+        subtotal: rows.reduce((s, r) => s + r.amount, 0)
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key, 'ja'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRows, summaryGroupBy, members]);
+
+  const handlePrintSummary = () => window.print();
+
   return (
     <div className="space-y-8">
       {/* ── 台帳外である旨の注意書き ─────────────────────── */}
@@ -286,6 +310,114 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ── 確認用一覧表（集計・印刷）─────────────────────── */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center border-b pb-2 flex-wrap gap-3 no-print">
+          <h3 className="text-lg font-bold text-gray-800">確認用一覧表（集計・印刷）</h3>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex bg-gray-100 rounded-lg p-1 text-sm">
+              <button
+                type="button"
+                onClick={() => setSummaryGroupBy('purpose')}
+                className={`px-3 py-1 rounded-md font-medium transition-colors ${summaryGroupBy === 'purpose' ? 'bg-white shadow text-amber-700' : 'text-gray-500'}`}
+              >
+                用途ごと
+              </button>
+              <button
+                type="button"
+                onClick={() => setSummaryGroupBy('member')}
+                className={`px-3 py-1 rounded-md font-medium transition-colors ${summaryGroupBy === 'member' ? 'bg-white shadow text-amber-700' : 'text-gray-500'}`}
+              >
+                拳士ごと
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handlePrintSummary}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors text-sm flex items-center"
+            >
+              🖨 印刷する
+            </button>
+          </div>
+        </div>
+
+        <div className="print-summary bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <style>{`
+            @media print {
+              body * { visibility: hidden; }
+              .print-summary, .print-summary * { visibility: visible; }
+              .print-summary {
+                position: absolute; left: 0; top: 0; width: 100%;
+                padding: 0; border: none; box-shadow: none;
+              }
+              .no-print { display: none !important; }
+              /* この一覧はシンプルな縦長リストのため、他の帳票(A4横)と異なりA4縦を使用 */
+              @page { size: A4 portrait; margin: 15mm; }
+              .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+            }
+          `}</style>
+
+          <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-gray-800">個人徴収記録 確認一覧</h1>
+            <p className="text-[11px] text-gray-400 mt-1">
+              ※台帳外の参考資料です。仕訳帳・監査報告など正式な会計書類には使用しません。
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              {fiscalYear ? `${fiscalYear}年度　` : ''}
+              {summaryGroupBy === 'purpose' ? '用途別' : '拳士別'}集計
+            </p>
+          </div>
+
+          {summaryGroups.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">対象データがありません</p>
+          ) : (
+            <div className="space-y-6">
+              {summaryGroups.map(group => (
+                <div key={group.key} className="avoid-break">
+                  <div className="flex justify-between items-center bg-amber-50 px-3 py-1.5 rounded border border-amber-100 mb-1">
+                    <span className="font-bold text-amber-900">{group.key}</span>
+                    <span className="text-sm font-semibold text-amber-800">
+                      小計 ¥{group.subtotal.toLocaleString()}（{group.rows.length}件）
+                    </span>
+                  </div>
+                  <table className="w-full text-sm border border-gray-200">
+                    <thead className="bg-gray-50 text-xs text-gray-500">
+                      <tr>
+                        <th className="py-1 px-2 text-left border-b border-gray-200 w-10">済</th>
+                        <th className="py-1 px-2 text-left border-b border-gray-200 whitespace-nowrap">日付</th>
+                        <th className="py-1 px-2 text-left border-b border-gray-200">
+                          {summaryGroupBy === 'purpose' ? '拳士' : '用途'}
+                        </th>
+                        <th className="py-1 px-2 text-left border-b border-gray-200">備考</th>
+                        <th className="py-1 px-2 text-right border-b border-gray-200">金額</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.rows.map(r => (
+                        <tr key={r.id} className="border-b border-gray-100">
+                          <td className="py-1 px-2 text-green-600 font-bold text-center">✓</td>
+                          <td className="py-1 px-2 whitespace-nowrap">{r.date}</td>
+                          <td className="py-1 px-2">
+                            {summaryGroupBy === 'purpose' ? memberName(r.memberId) : r.purpose}
+                          </td>
+                          <td className="py-1 px-2 text-gray-500 max-w-[160px] truncate" title={r.notes}>{r.notes}</td>
+                          <td className="py-1 px-2 text-right font-mono">¥{r.amount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+
+              <div className="flex justify-between items-center bg-gray-800 text-white px-4 py-2 rounded font-bold avoid-break">
+                <span>全体合計（{activeRows.length}件）</span>
+                <span>¥{activeTotal.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
