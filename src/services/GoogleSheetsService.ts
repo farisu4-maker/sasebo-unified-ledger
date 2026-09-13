@@ -1,4 +1,4 @@
-import { Member, Transaction, Expense, Budget, Organization } from '../types';
+import { Member, Transaction, Expense, Budget, Organization, PersonalCollection } from '../types';
 
 export class GoogleSheetsService {
 
@@ -591,6 +591,117 @@ export class GoogleSheetsService {
    */
   static async cancelExpense(id: string): Promise<boolean> {
     return this.updateCancelFlag('T_Expenses!A:A', id, 10);
+  }
+
+  // ============================================================
+  //  T_PersonalCollections（個人徴収記録・台帳外）
+  //  A: ID, B: timestamp, C: 日付, D: 会員ID, E: 摘要,
+  //  F: 金額, G: 支払方法, H: 備考, I: 入力者ID, J: 取消フラグ
+  //
+  //  昇段試験受験料など「団体が支払う必要のないもの」を、便宜上まとめて
+  //  集金・記録するための帳票。他のどの集計（監査レポート・仕訳帳・
+  //  予算計算等）からも一切参照しない、完全に独立したシートに保存する。
+  // ============================================================
+
+  static async fetchPersonalCollections(): Promise<PersonalCollection[]> {
+    try {
+      const res = await this.fetchApi('T_PersonalCollections!A2:J');
+      const data = await res.json();
+      if (!data.values) return [];
+
+      return data.values.map((row: string[]) => ({
+        id: row[0],
+        timestamp: row[1],
+        date: this.standardizeDate(row[2]) || row[2],
+        memberId: row[3],
+        purpose: row[4],
+        amount: this.parseNumber(row[5]),
+        paymentMethod: row[6],
+        notes: row[7] || undefined,
+        enteredById: row[8],
+        isCancelled: row[9] === 'TRUE' || row[9] === 'true',
+      }));
+    } catch (e) {
+      console.error('Failed to fetch T_PersonalCollections', e);
+      return [];
+    }
+  }
+
+  static async syncPersonalCollection(pc: PersonalCollection): Promise<boolean> {
+    try {
+      const exists = await this.checkExists('T_PersonalCollections!A:A', pc.id);
+      if (exists) return true;
+
+      const values = [[
+        pc.id,
+        pc.timestamp,
+        pc.date,
+        pc.memberId,
+        pc.purpose,
+        pc.amount,
+        pc.paymentMethod,
+        pc.notes || '',
+        pc.enteredById,
+        pc.isCancelled ? 'TRUE' : 'FALSE', // J列
+      ]];
+
+      const res = await this.fetchApi('T_PersonalCollections!A:J:append?valueInputOption=USER_ENTERED', {
+        method: 'POST',
+        body: JSON.stringify({ values })
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    } catch (e) {
+      console.error('Failed to sync personal collection', e);
+      return false;
+    }
+  }
+
+  static async updatePersonalCollection(pc: PersonalCollection): Promise<boolean> {
+    try {
+      const res = await this.fetchApi('T_PersonalCollections!A:A');
+      const data = await res.json();
+      if (!data.values) return false;
+
+      const rowIndex = data.values.findIndex((row: string[]) => row[0] === pc.id);
+      if (rowIndex === -1) {
+        console.error(`PersonalCollection ID ${pc.id} not found`);
+        return false;
+      }
+      const sheetRow = rowIndex + 1;
+
+      const values = [[
+        pc.id,
+        pc.timestamp,
+        pc.date,
+        pc.memberId,
+        pc.purpose,
+        pc.amount,
+        pc.paymentMethod,
+        pc.notes || '',
+        pc.enteredById,
+        pc.isCancelled ? 'TRUE' : 'FALSE',
+      ]];
+
+      const updateRes = await this.batchUpdateValues([{
+        range: `T_PersonalCollections!A${sheetRow}:J${sheetRow}`,
+        values
+      }]);
+
+      return updateRes.ok;
+    } catch (e) {
+      console.error('Failed to update personal collection', e);
+      return false;
+    }
+  }
+
+  /**
+   * 個人徴収記録を論理削除（取消）します
+   * J列（インデックス9）の取消フラグを TRUE に
+   */
+  static async cancelPersonalCollection(id: string): Promise<boolean> {
+    return this.updateCancelFlag('T_PersonalCollections!A:A', id, 9);
   }
 
   // ============================================================
