@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Member, Transaction, Expense, Budget } from '../types';
+import { Member, Transaction, Expense, Budget, PersonalCollection } from '../types';
 import { GoogleSheetsService } from '../services/GoogleSheetsService';
 
 interface SettingsProps {
@@ -7,12 +7,13 @@ interface SettingsProps {
   transactions: Transaction[];
   expenses: Expense[];
   budgets: Budget[];
+  personalCollections: PersonalCollection[];
   fiscalYear: number;
   onCloseFiscalYear: () => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ 
-  members, transactions, expenses, budgets, fiscalYear, onCloseFiscalYear
+export const Settings: React.FC<SettingsProps> = ({
+  members, transactions, expenses, budgets, personalCollections, fiscalYear, onCloseFiscalYear
 }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -23,11 +24,12 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleExport = () => {
     const data = {
       exportDate: new Date().toISOString(),
-      version: "1.0",
+      version: "1.1",
       members,
       transactions,
       expenses,
       budgets,
+      personalCollections,
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -224,7 +226,7 @@ export const Settings: React.FC<SettingsProps> = ({
             データ・バックアップ
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            現在のシステムに登録されているすべてのデータ（拳士情報、入出金履歴、予算設定など）をJSONファイルとしてダウンロードします。<br />
+            現在のシステムに登録されているすべてのデータ（拳士情報、入出金履歴、予算設定、個人徴収記録など）をJSONファイルとしてダウンロードします。<br />
             定期的なバックアップを推奨します。
           </p>
           <div className="flex flex-wrap gap-4">
