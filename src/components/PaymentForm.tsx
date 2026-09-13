@@ -11,36 +11,101 @@ interface PaymentFormProps {
   onSubmit: (data: { memberId: string; item: string; amount: number; paymentMethod: string; organization?: string; date: string; targetMonth: string }) => void;
 }
 
+/** 会計年度（4月始まり）。3月以前は前年を年度とする。 */
+function getFiscalYear(d: Date = new Date()): number {
+  return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear();
+}
+
+/** 指定した会計年度（fy年4月〜fy+1年3月）の対象月キー(YYYY-MM)を12件生成する */
+function monthsOfFiscalYear(fy: number): string[] {
+  const months: string[] = [];
+  for (let i = 4; i <= 15; i++) {
+    const year = i > 12 ? fy + 1 : fy;
+    const mon = i > 12 ? i - 12 : i;
+    months.push(`${year}-${String(mon).padStart(2, '0')}`);
+  }
+  return months;
+}
+
+/** YYYY-MM文字列から、その月が属する会計年度を逆算する（1〜3月は前年度扱い） */
+function fiscalYearOfMonth(ym: string): number {
+  const [y, m] = ym.split('-').map(Number);
+  return m <= 3 ? y - 1 : y;
+}
+
+/** 費目のカード表示用グルーピング */
+const FEE_ITEM_GROUPS: { title: string; items: { value: string; emoji: string; hint?: string }[] }[] = [
+  {
+    title: '毎月',
+    items: [
+      { value: '信徒香資（月）', emoji: '📿' },
+      { value: 'スポ少会費（月）', emoji: '🥋' },
+    ]
+  },
+  {
+    title: '年1回',
+    items: [
+      { value: '財団年費', emoji: '💰', hint: '年度末年齢で自動計算' },
+      { value: '宗教年費', emoji: '⛩️' },
+    ]
+  },
+  {
+    title: '過年度分回収',
+    items: [
+      { value: '前年度未納分回収（道院）', emoji: '⏪' },
+      { value: '前年度未納分回収（スポ少）', emoji: '⏪' },
+    ]
+  },
+  {
+    title: 'その他',
+    items: [
+      { value: 'その他', emoji: '✏️' },
+    ]
+  },
+];
+
 export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, feeItems, transactions, onClose, onSubmit }) => {
   const [paymentDate, setPaymentDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const currentFy = getFiscalYear();
   const initialMonth = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   })();
   const [targetMonths, setTargetMonths] = useState<string[]>([initialMonth]);
 
-  const quickMonths = React.useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const fy = currentMonth < 4 ? currentYear - 1 : currentYear;
-    
-    const months = [];
-    for (let i = 4; i <= 15; i++) {
-      const year = i > 12 ? fy + 1 : fy;
-      const mon = i > 12 ? i - 12 : i;
-      months.push(`${year}-${String(mon).padStart(2, '0')}`);
-    }
-    return months;
-  }, []);
+  // 対象月ボタンで表示する年度（◀▶で切り替える。選択自体は年度をまたいでも保持される）
+  const [viewFy, setViewFy] = useState<number>(currentFy);
+  const quickMonths = React.useMemo(() => monthsOfFiscalYear(viewFy), [viewFy]);
 
   const toggleMonth = (m: string) => {
-    setTargetMonths(prev => 
+    setTargetMonths(prev =>
       prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort()
     );
   };
+
+  const selectAllOfViewFy = () => {
+    setTargetMonths(prev => Array.from(new Set([...prev, ...quickMonths])).sort());
+  };
+
+  const clearViewFySelection = () => {
+    setTargetMonths(prev => prev.filter(m => !quickMonths.includes(m)));
+  };
+
+  // 選択中の対象月を年度ごとにグルーピング（年度を切り替えても選択済みが見えなくならないように）
+  const selectedByFy = React.useMemo(() => {
+    const groups: Record<number, string[]> = {};
+    targetMonths.forEach(m => {
+      const fy = fiscalYearOfMonth(m);
+      if (!groups[fy]) groups[fy] = [];
+      groups[fy].push(m);
+    });
+    return Object.entries(groups)
+      .map(([fy, months]) => ({ fy: Number(fy), months: months.sort() }))
+      .sort((a, b) => a.fy - b.fy);
+  }, [targetMonths]);
+
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [selectedOrg] = useState<string>(
     member.organization === '両方' ? '道院' : member.organization
@@ -49,15 +114,24 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
   const [paymentMethod, setPaymentMethod] = useState<string>('現金');
   const [suggestedFeeMessage, setSuggestedFeeMessage] = useState<string>('');
 
+  const handleSelectItem = (value: string) => {
+    setSelectedItem(value);
+    // 「過年度分回収」を選んだら、対象月ボタンを自動で1年度前の表示に切り替える
+    // （選択済みの月がリセットされるわけではなく、あくまで見えている年度が変わるだけ）
+    if (value === '前年度未納分回収（道院）' || value === '前年度未納分回収（スポ少）') {
+      setViewFy(currentFy - 1);
+    }
+  };
+
   // 家族割引の動的判定（Representative_ID, 現役, 加入・脱退日）
   const today = new Date().toISOString().split('T')[0];
-  const familyMembers = member.representativeId 
-    ? allMembers.filter((m: Member) => 
+  const familyMembers = member.representativeId
+    ? allMembers.filter((m: Member) =>
         m.representativeId === member.representativeId &&
         m.status === '現役' &&
         m.joinDate <= today &&
         (!m.leaveDate || m.leaveDate >= today)
-      ) 
+      )
     : [];
   const isFamilyDiscountEligible = familyMembers.length >= 3;
 
@@ -112,28 +186,28 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem || amount <= 0 || targetMonths.length === 0) return;
-    
+
     // 過納・重複チェックロジック
     if (selectedItem === '信徒香資（月）' || selectedItem === 'スポ少会費（月）') {
-      const targetAmount = 
-        selectedItem === '信徒香資（月）' 
+      const targetAmount =
+        selectedItem === '信徒香資（月）'
           ? (member.role ? 1500 : (member.organization === '両方' ? 2500 : feeItems.find(f => f.name === '信徒香資（月）')?.amount || 3000))
           : (member.organization === '両方' ? 1000 : feeItems.find(f => f.name === 'スポ少会費（月）')?.amount || 1500);
-          
+
       for (const tMonth of targetMonths) {
         const pastTotal = transactions
           .filter(t => !t.isCancelled && t.memberId === member.id && t.item === selectedItem && t.targetMonth === tMonth)
           .reduce((sum, t) => sum + t.amount, 0);
-          
+
         if (pastTotal + amount > targetAmount) {
           alert(`【${tMonth}】の調定額（${targetAmount}円）を超過しています。\n既に${pastTotal}円が納入済みです。重複入力または過納になっていないか確認してください。`);
           return;
         }
       }
     }
-    
-    const targetOrg = member.organization === '両方' && submitTargetRef.current 
-      ? submitTargetRef.current 
+
+    const targetOrg = member.organization === '両方' && submitTargetRef.current
+      ? submitTargetRef.current
       : member.organization === '両方' ? selectedOrg : member.organization;
 
     targetMonths.forEach(month => {
@@ -175,7 +249,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                 <p className="text-red-600">🚨 他団体で未納がないか一元的に状況をご確認ください。</p>
               </div>
             )}
-            
+
             {isFamilyDiscountEligible && (
               <div className="mt-2 text-xs bg-green-100 text-green-800 p-2 rounded flex items-center border border-green-200">
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
@@ -188,21 +262,55 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
             <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">入金処理日</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   required
                 />
               </div>
+
               <div className="bg-blue-50 p-4 rounded-md border-2 border-blue-200 shadow-sm relative">
                 <div className="absolute top-0 right-0 -mt-3 -mr-2">
                   <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow">必須</span>
                 </div>
                 <label className="block text-sm font-bold text-blue-900 mb-2">何月分の入金ですか？（対象月）</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {Array.from(new Set([...quickMonths, ...targetMonths])).sort().map(m => {
+
+                {/* 年度切り替え（過年度分の入力はここで年度を選んでから月を選ぶ） */}
+                <div className="flex items-center justify-center gap-3 mb-3 bg-white rounded-md border border-blue-200 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewFy(fy => fy - 1)}
+                    className="text-blue-600 hover:text-blue-800 font-bold px-2"
+                    title="1年度前へ"
+                  >
+                    ◀
+                  </button>
+                  <span className="font-bold text-blue-900 text-sm min-w-[90px] text-center">
+                    {viewFy}年度{viewFy !== currentFy && <span className="text-amber-600 ml-1">（過年度）</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setViewFy(fy => fy + 1)}
+                    className="text-blue-600 hover:text-blue-800 font-bold px-2"
+                    title="1年度後へ"
+                  >
+                    ▶
+                  </button>
+                  {viewFy !== currentFy && (
+                    <button
+                      type="button"
+                      onClick={() => setViewFy(currentFy)}
+                      className="text-xs text-gray-400 hover:text-gray-600 underline ml-1"
+                    >
+                      今年度に戻す
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {quickMonths.map(m => {
                     const isSelected = targetMonths.includes(m);
                     const [year, mon] = m.split('-');
                     return (
@@ -211,8 +319,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                         type="button"
                         onClick={() => toggleMonth(m)}
                         className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-transform active:scale-95 ${
-                          isSelected 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
                             : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 hover:border-gray-400 shadow-sm'
                         }`}
                       >
@@ -221,26 +329,68 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                     );
                   })}
                 </div>
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                  <span className="text-xs text-gray-500">その他の月:</span>
-                  <input 
-                    type="month" 
-                    id="custom-month"
-                    className="border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      const val = (document.getElementById('custom-month') as HTMLInputElement).value;
-                      if (val && !targetMonths.includes(val)) {
-                        setTargetMonths(prev => [...prev, val].sort());
-                      }
-                    }}
-                    className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1.5 px-3 rounded-md transition-colors"
-                  >
-                    追加
+
+                <div className="flex items-center gap-3 text-xs pb-2 mb-2 border-b border-blue-100">
+                  <button type="button" onClick={selectAllOfViewFy} className="text-indigo-600 hover:text-indigo-800 font-medium underline">
+                    {viewFy}年度分をすべて選択
+                  </button>
+                  <button type="button" onClick={clearViewFySelection} className="text-gray-400 hover:text-gray-600 font-medium underline">
+                    {viewFy}年度分の選択をクリア
                   </button>
                 </div>
+
+                {/* 選択中の対象月一覧（年度をまたいで選んでも見失わないように常時表示） */}
+                {selectedByFy.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {selectedByFy.map(({ fy, months }) => (
+                      <div key={fy} className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className={`font-bold px-1.5 py-0.5 rounded ${fy === currentFy ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {fy}年度
+                        </span>
+                        {months.map(m => {
+                          const [, mon] = m.split('-');
+                          return (
+                            <span key={m} className="inline-flex items-center bg-gray-100 text-gray-700 rounded-full pl-2 pr-1 py-0.5">
+                              {parseInt(mon, 10)}月
+                              <button
+                                type="button"
+                                onClick={() => toggleMonth(m)}
+                                className="ml-1 text-gray-400 hover:text-red-500 font-bold"
+                                title="この月を解除"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <details className="text-xs text-gray-400">
+                  <summary className="cursor-pointer hover:text-gray-600">その他の月を直接指定する</summary>
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="month"
+                      id="custom-month"
+                      className="border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = (document.getElementById('custom-month') as HTMLInputElement).value;
+                        if (val && !targetMonths.includes(val)) {
+                          setTargetMonths(prev => [...prev, val].sort());
+                        }
+                      }}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1.5 px-3 rounded-md transition-colors"
+                    >
+                      追加
+                    </button>
+                  </div>
+                </details>
+
                 {targetMonths.length === 0 && (
                   <p className="text-red-500 text-xs mt-2 font-bold">※対象月を1つ以上選択してください。</p>
                 )}
@@ -251,32 +401,47 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">費目</label>
-              <select 
-                value={selectedItem}
-                onChange={(e) => setSelectedItem(e.target.value)}
-                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              >
-                <option value="" disabled>費目を選択してください</option>
-                <option value="財団年費">財団年費</option>
-                <option value="宗教年費">宗教年費</option>
-                <option value="信徒香資（月）">信徒香資（月）</option>
-                <option value="スポ少会費（月）">スポ少会費（月）</option>
-                <optgroup label="── 過年度分回収 ──">
-                  <option value="前年度未納分回収（道院）">前年度未納分回収（道院）</option>
-                  <option value="前年度未納分回収（スポ少）">前年度未納分回収（スポ少）</option>
-                </optgroup>
-                <option value="その他">その他</option>
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-2">費目</label>
+              <div className="space-y-3">
+                {FEE_ITEM_GROUPS.map(group => (
+                  <div key={group.title}>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">{group.title}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.items.map(({ value, emoji, hint }) => {
+                        const isSelected = selectedItem === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleSelectItem(value)}
+                            className={`flex flex-col items-start px-3 py-2 rounded-lg text-sm font-medium border-2 transition-transform active:scale-95 text-left ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400 shadow-sm'
+                            }`}
+                          >
+                            <span>{emoji} {value}</span>
+                            {hint && (
+                              <span className={`text-[10px] font-normal mt-0.5 ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>{hint}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!selectedItem && (
+                <p className="text-red-500 text-xs mt-2 font-bold">※費目を1つ選択してください。</p>
+              )}
             </div>
 
             {/* Radio buttons for organization have been replaced by separate submit buttons below */}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">金額 (円)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
                 className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-bold"
@@ -302,8 +467,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
             </div>
 
             <div className="pt-4 flex justify-end gap-3 flex-wrap">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={onClose}
                 className="bg-white border border-gray-300 rounded-md py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
               >
@@ -311,7 +476,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
               </button>
               {member.organization === '両方' ? (
                 <>
-                  <button 
+                  <button
                     type="submit"
                     disabled={targetMonths.length === 0}
                     onClick={() => submitTargetRef.current = '道院'}
@@ -319,7 +484,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                   >
                     道院分として登録
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     disabled={targetMonths.length === 0}
                     onClick={() => submitTargetRef.current = 'スポ少'}
@@ -329,7 +494,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ member, allMembers, fe
                   </button>
                 </>
               ) : (
-                <button 
+                <button
                   type="submit"
                   disabled={targetMonths.length === 0}
                   className={`border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white transition-colors shadow-sm ${targetMonths.length === 0 ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'}`}
