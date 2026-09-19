@@ -53,6 +53,13 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
 
   const memberName = (id: string) => members.find(m => m.id === id)?.name ?? id;
 
+  // 入力誤り・打ち間違い防止のための確認ステップ。
+  // 「記録する」を押した時点ではまだ確定させず、内容を要約した確認モーダルを
+  // 一度挟んでから、明示的な「この内容で記録する」でようやくonSubmitを呼ぶ。
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingDate, setPendingDate] = useState<string>('');
+  const [pendingPurpose, setPendingPurpose] = useState<string>('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberId || !amount) return;
@@ -66,10 +73,17 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
 
     const finalPurpose = purpose === 'その他' ? (customPurpose.trim() || 'その他') : purpose;
 
+    // ここではまだ記録せず、確認モーダルを表示するだけ
+    setPendingDate(parsedDate);
+    setPendingPurpose(finalPurpose);
+    setShowConfirm(true);
+  };
+
+  const handleConfirmedSubmit = () => {
     onSubmit({
-      date: parsedDate,
+      date: pendingDate,
       memberId,
-      purpose: finalPurpose,
+      purpose: pendingPurpose,
       amount: Number(amount),
       paymentMethod,
       notes: notes.trim()
@@ -78,6 +92,7 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
     setAmount('');
     setNotes('');
     setCustomPurpose('');
+    setShowConfirm(false);
   };
 
   // ── 一覧（年度指定があれば絞り込み、無ければ全件） ────────
@@ -133,6 +148,7 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
   const handlePrintSummary = () => window.print();
 
   return (
+    <>
     <div className="space-y-8">
       {/* ── 台帳外である旨の注意書き ─────────────────────── */}
       <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded shadow-sm">
@@ -421,5 +437,67 @@ export const PersonalCollectionForm: React.FC<PersonalCollectionFormProps> = ({
         </div>
       </div>
     </div>
+
+    {/* ── 確認モーダル（入力誤り・打ち間違い防止） ─────────── */}
+    {showConfirm && (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+          <h3 className="font-bold text-lg text-gray-800 mb-1 flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            この内容でよろしいですか？
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">打ち間違いがないか確認してから記録してください。</p>
+
+          <div className="space-y-2 text-sm bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="flex justify-between">
+              <span className="text-gray-500">対象拳士</span>
+              <span className="font-bold text-gray-800">{memberName(memberId)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">日付</span>
+              <span className="font-bold text-gray-800">{pendingDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">用途</span>
+              <span className="font-bold text-gray-800">{pendingPurpose}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">支払方法</span>
+              <span className="font-bold text-gray-800">{paymentMethod}</span>
+            </div>
+            {notes.trim() && (
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500 shrink-0">備考</span>
+                <span className="font-bold text-gray-800 text-right break-words">{notes.trim()}</span>
+              </div>
+            )}
+            <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between items-center">
+              <span className="text-gray-600 font-medium">金額</span>
+              <span className="text-xl font-bold text-amber-700">¥{Number(amount).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              修正する
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmedSubmit}
+              className="px-4 py-2 rounded-md shadow-sm text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors"
+            >
+              この内容で記録する
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
