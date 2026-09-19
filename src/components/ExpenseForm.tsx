@@ -36,6 +36,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 入力誤り・打ち間違い防止のための確認ステップ。
+  // 「支出を登録する」を押した時点ではまだ確定させず、内容を要約した
+  // モーダルを一度挟んでから、明示的な「この内容で登録する」で確定する。
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingDate, setPendingDate] = useState<string>('');
+
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -54,7 +60,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
 
@@ -66,6 +72,13 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
     }
     setDateError(null);
 
+    // ここではまだ登録・アップロードせず、確認モーダルを表示するだけ
+    setPendingDate(parsedDate);
+    setShowConfirm(true);
+  };
+
+  const handleConfirmedSubmit = async () => {
+    if (!amount) return;
     setIsSubmitting(true);
     let finalReceiptUrl: string | null = null;
 
@@ -74,8 +87,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
         finalReceiptUrl = await GoogleSheetsService.uploadReceiptImage(base64Image, receiptFile.name);
       }
 
-      onSubmit({ date: parsedDate, organization, category, description, amount: Number(amount), paymentMethod, receiptUrl: finalReceiptUrl });
-      
+      onSubmit({ date: pendingDate, organization, category, description, amount: Number(amount), paymentMethod, receiptUrl: finalReceiptUrl });
+
       setDescription('');
       setAmount('');
       setReceiptUrl(null);
@@ -83,6 +96,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
       setBase64Image(null);
       const fileInput = document.getElementById('receiptInput') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
+      setShowConfirm(false);
     } catch (err: any) {
       alert(`画像のアップロードに失敗しました: ${err.message}`);
     } finally {
@@ -197,6 +211,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
   };
 
   return (
+    <>
     <div className="space-y-8">
       {/* ── 支出入力フォーム ────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl mx-auto">
@@ -325,5 +340,81 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, expenses = [
         </div>
       </div>
     </div>
+
+    {/* ── 確認モーダル（入力誤り・打ち間違い防止） ─────────── */}
+    {showConfirm && (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+          <h3 className="font-bold text-lg text-gray-800 mb-1 flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            この内容でよろしいですか？
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">打ち間違いがないか確認してから登録してください。</p>
+
+          <div className="space-y-2 text-sm bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="flex justify-between">
+              <span className="text-gray-500">日付</span>
+              <span className="font-bold text-gray-800">{pendingDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">対象団体</span>
+              <span className="font-bold text-gray-800">{organization}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">勘定科目</span>
+              <span className="font-bold text-gray-800">{category}</span>
+            </div>
+            {description && (
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500 shrink-0">摘要・説明</span>
+                <span className="font-bold text-gray-800 text-right break-words">{description}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">支払方法</span>
+              <span className="font-bold text-gray-800">{paymentMethod}</span>
+            </div>
+            {receiptFile && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">領収書</span>
+                <span className="font-bold text-gray-800">添付あり（{receiptFile.name}）</span>
+              </div>
+            )}
+            <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between items-center">
+              <span className="text-gray-600 font-medium">金額</span>
+              <span className="text-xl font-bold text-rose-700">¥{Number(amount).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              disabled={isSubmitting}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              修正する
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmedSubmit}
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+            >
+              {isSubmitting && (
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {isSubmitting ? 'アップロード中...' : 'この内容で登録する'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
